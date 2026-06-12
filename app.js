@@ -1020,16 +1020,17 @@ function updateProfileDropdowns() {
 // ==========================================================================
 function getFamilyBalance() {
     const activeProfile = getActiveProfile();
+    if (!activeProfile) return 0;
     
     if (activeProfile.role === "Çocuk") {
         // Çocuk sadece kendi kumbarasını görür
-        return activeProfile.balanceContribution;
+        return activeProfile.balanceContribution || 0;
     }
     
     // Ebeveyn ortak bütçeyi (tüm ebeveynlerin bakiye katkısını) görür. Çocuk bakiyesi hariç.
     return state.profiles
         .filter(p => p.role === "Ebeveyn")
-        .reduce((sum, p) => sum + p.balanceContribution, 0);
+        .reduce((sum, p) => sum + (p.balanceContribution || 0), 0);
 }
 
 function calculateFinancials() {
@@ -1492,8 +1493,20 @@ function getSharedSplitBalances() {
     const ebeveynler = state.profiles.filter(p => p.role === "Ebeveyn");
     if (ebeveynler.length <= 1) return [];
 
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-11
+    const currentYear = now.getFullYear();
+
     // Maaş/recurring hariç bu ayki ortak giderlerin toplamını bulalım
-    const sharedExpenses = state.transactions.filter(t => t.type === "expense" && !t.isRecurring);
+    const sharedExpenses = state.transactions.filter(t => {
+        if (t.type !== "expense" || t.isRecurring) return false;
+        if (!t.date) return false;
+        const dateParts = t.date.split("-");
+        if (dateParts.length < 2) return false;
+        const tYear = parseInt(dateParts[0], 10);
+        const tMonth = parseInt(dateParts[1], 10) - 1; // 0-11
+        return tMonth === currentMonth && tYear === currentYear;
+    });
     const totalSharedSpent = sharedExpenses.reduce((sum, t) => sum + t.amount, 0);
     
     const fairShare = totalSharedSpent / ebeveynler.length;
@@ -1553,19 +1566,31 @@ function settleSharedBalances() {
     const debtors = balances.filter(b => b.balance < 0);
     const creditors = balances.filter(b => b.balance > 0);
 
-    debtors.forEach(d => {
-        const debtVal = Math.abs(d.balance);
-        const debtorProfile = state.profiles.find(p => p.id === d.id);
-        
-        // Alacaklıların bakiyesine aktar
-        creditors.forEach(c => {
-            const creditorProfile = state.profiles.find(p => p.id === c.id);
-            if (debtorProfile && creditorProfile) {
-                debtorProfile.balanceContribution -= debtVal;
-                creditorProfile.balanceContribution += debtVal;
-            }
-        });
-    });
+    // Açgözlü (Greedy) Mahsuplaşma Algoritması:
+    // Borçluların borçlarını alacaklılara birebir (fazladan veya eksik olmadan) aktarmasını sağlar.
+    const localDebtors = debtors.map(d => ({ id: d.id, amount: Math.abs(d.balance) }));
+    const localCreditors = creditors.map(c => ({ id: c.id, amount: c.balance }));
+
+    let dIdx = 0, cIdx = 0;
+    while (dIdx < localDebtors.length && cIdx < localCreditors.length) {
+        const debtor = localDebtors[dIdx];
+        const creditor = localCreditors[cIdx];
+        const settleAmount = Math.min(debtor.amount, creditor.amount);
+
+        const debtorProfile = state.profiles.find(p => p.id === debtor.id);
+        const creditorProfile = state.profiles.find(p => p.id === creditor.id);
+
+        if (debtorProfile && creditorProfile) {
+            debtorProfile.balanceContribution -= settleAmount;
+            creditorProfile.balanceContribution += settleAmount;
+        }
+
+        debtor.amount -= settleAmount;
+        creditor.amount -= settleAmount;
+
+        if (debtor.amount < 0.01) dIdx++;
+        if (creditor.amount < 0.01) cIdx++;
+    }
 
     // Bu mahsuplaşmayı bütçeye yansıtan temsili bir işlem ekle
     const settlementTrans = {
@@ -2280,16 +2305,32 @@ function checkAndUnlockBadges(profileId) {
 
     // Rozet 2: Bütçe Koruyucusu (Harcamaları limitin %80'inin altında tutma)
     if (profile.role === "Ebeveyn") {
-        const spentCategories = [...new Set(state.transactions.filter(t => t.type === "expense" && t.memberId === profileId).map(t => t.category))];
-        let withinLimit = true;
+        const now = new Date();
+        const currentMonth = now.getMonth(); // 0-11
+        const currentYear = now.getFullYear();
+
+        const limits = state.categoryLimits || {};
+        const limitedCategories = Object.keys(limits).filter(cat => limits[cat] > 0);
         
-        if (spentCategories.length > 0) {
-            spentCategories.forEach(cat => {
+        if (limitedCategories.length > 0) {
+            let withinLimit = true;
+            
+            limitedCategories.forEach(cat => {
+                const limit = limits[cat];
+                // Cari ay içerisindeki aile geneli toplam kategori harcaması
                 const totalSpent = state.transactions
-                    .filter(t => t.type === "expense" && t.category === cat && t.memberId === profileId)
+                    .filter(t => {
+                        if (t.type !== "expense" || t.category !== cat) return false;
+                        if (!t.date) return false;
+                        const dateParts = t.date.split("-");
+                        if (dateParts.length < 2) return false;
+                        const tYear = parseInt(dateParts[0], 10);
+                        const tMonth = parseInt(dateParts[1], 10) - 1; // 0-11
+                        return tMonth === currentMonth && tYear === currentYear;
+                    })
                     .reduce((sum, t) => sum + t.amount, 0);
-                const limit = state.categoryLimits ? (state.categoryLimits[cat] || 0) : 0;
-                if (limit > 0 && totalSpent > limit * 0.8) {
+                
+                if (totalSpent > limit * 0.8) {
                     withinLimit = false;
                 }
             });
