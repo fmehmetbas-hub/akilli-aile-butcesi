@@ -597,17 +597,54 @@
 
     <!-- MODAL: PROFILE SWITCHER (LOGIN GRID) -->
     <div class="modal show" id="profileSelectorModal">
-        <div class="modal-content glass-card max-width-md text-center">
-            <div class="modal-header no-border">
-                <h3>Akıllı Aile Bütçesi</h3>
-                <p>Giriş yapmak için profilinizi seçiniz</p>
-            </div>
-            <div class="modal-body">
-                <div class="profile-grid" id="profileGrid">
-                    <!-- Dynamic Profiles Grid -->
+        <div class="modal-content glass-card max-width-md text-center" style="position: relative;">
+            <!-- 1. Profil Seçim Ekranı -->
+            <div id="profileSelectScreen">
+                <div class="modal-header no-border">
+                    <h3>Akıllı Aile Bütçesi</h3>
+                    <p>Giriş yapmak için profilinizi seçiniz</p>
                 </div>
-                <div class="separator"></div>
-                <button class="btn btn-outline" id="openAddProfileBtn"><i class="fa-solid fa-plus"></i> Yeni Üye Ekle</button>
+                <div class="modal-body">
+                    <div class="profile-grid" id="profileGrid">
+                        <!-- Dinamik Profiller Grid -->
+                    </div>
+                    <div class="separator"></div>
+                    <button class="btn btn-outline" id="openAddProfileBtn"><i class="fa-solid fa-plus"></i> Yeni Üye Ekle</button>
+                </div>
+            </div>
+
+            <!-- 2. PIN Giriş Ekranı (Şifreli giriş için) -->
+            <div id="profilePinScreen" style="display: none;">
+                <div class="modal-header no-border" style="position: relative;">
+                    <button class="btn btn-sm btn-outline" id="backToProfilesBtn" style="position: absolute; left: 0; top: 0;"><i class="fa-solid fa-arrow-left"></i> Geri</button>
+                    <h3 id="pinScreenTitle" style="margin-top: 40px;">Giriş Yap</h3>
+                    <p id="pinScreenSubtitle">Lütfen 4 haneli PIN kodunuzu giriniz</p>
+                </div>
+                <div class="modal-body">
+                    <!-- PIN Noktaları -->
+                    <div class="pin-dots" id="pinDots">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                    
+                    <!-- Sayısal Klavye (Numpad) -->
+                    <div class="numpad">
+                        <button class="num-btn" data-val="1">1</button>
+                        <button class="num-btn" data-val="2">2</button>
+                        <button class="num-btn" data-val="3">3</button>
+                        <button class="num-btn" data-val="4">4</button>
+                        <button class="num-btn" data-val="5">5</button>
+                        <button class="num-btn" data-val="6">6</button>
+                        <button class="num-btn" data-val="7">7</button>
+                        <button class="num-btn" data-val="8">8</button>
+                        <button class="num-btn" data-val="9">9</button>
+                        <button class="num-btn action" data-val="clear"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button class="num-btn" data-val="0">0</button>
+                        <button class="num-btn action" data-val="backspace"><i class="fa-solid fa-delete-left"></i></button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -631,6 +668,11 @@
                             <option value="Ebeveyn">Ebeveyn (Tam Yetki)</option>
                             <option value="Çocuk">Çocuk (Kısıtlı Yetki & Çocuk Modu)</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="profPin">Giriş PIN Kodu (4 Hane - İsteğe Bağlı)</label>
+                        <input type="password" id="profPin" pattern="[0-9]*" inputmode="numeric" maxlength="4" placeholder="Örn: 1234">
+                        <small class="helper-text">Boş bırakılırsa şifresiz giriş yapılabilir.</small>
                     </div>
                     <div class="form-group">
                         <label for="profAvatar">Avatar Seçimi</label>

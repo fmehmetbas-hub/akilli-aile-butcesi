@@ -5,9 +5,9 @@
 // varsayılan bütçe durum şablonu (Kullanıcı ilk açtığında wow etkisi yaratacak hazır veriler)
 const DEFAULT_STATE = {
     profiles: [
-        { id: "p1", name: "Faruk", role: "Ebeveyn", avatar: "fa-user-tie", balanceContribution: 32000 },
-        { id: "p2", name: "Ayşe", role: "Ebeveyn", avatar: "fa-user-nurse", balanceContribution: 18000 },
-        { id: "p3", name: "Can", role: "Çocuk", avatar: "fa-user-astronaut", balanceContribution: 250 }
+        { id: "p1", name: "Faruk", role: "Ebeveyn", avatar: "fa-user-tie", balanceContribution: 32000, pin: "1234" },
+        { id: "p2", name: "Ayşe", role: "Ebeveyn", avatar: "fa-user-nurse", balanceContribution: 18000, pin: "5678" },
+        { id: "p3", name: "Can", role: "Çocuk", avatar: "fa-user-astronaut", balanceContribution: 250, pin: "" }
     ],
     activeProfileId: "p1",
     transactions: [
@@ -43,6 +43,8 @@ const DEFAULT_STATE = {
 
 // Global Uygulama Durumu (State)
 let state = null;
+let selectedProfileForPinId = null;
+let enteredPin = "";
 
 // ==========================================================================
 // UYGULAMA BAŞLANGICI VE LOAD İŞLEMLERİ
@@ -207,6 +209,19 @@ function bindEvents() {
     document.getElementById("filterMember").addEventListener("change", renderTransactions);
     document.getElementById("filterCategory").addEventListener("change", renderTransactions);
     document.getElementById("filterType").addEventListener("change", renderTransactions);
+
+    // PIN Klavye Numpad Tıklamaları
+    document.querySelectorAll(".num-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const val = btn.getAttribute("data-val");
+            handlePinInput(val);
+        });
+    });
+
+    // Geri Butonu (PIN Ekranından Profil Seçimine)
+    document.getElementById("backToProfilesBtn").addEventListener("click", () => {
+        showProfileSelectScreen();
+    });
 }
 
 // ==========================================================================
@@ -299,15 +314,39 @@ function renderProfiles() {
 }
 
 function selectProfile(profileId) {
+    const profile = state.profiles.find(p => p.id === profileId);
+    if (profile && profile.pin && profile.pin.trim() !== "") {
+        // PIN ekranını aç
+        selectedProfileForPinId = profileId;
+        enteredPin = "";
+        updatePinDots();
+        document.getElementById("pinScreenTitle").innerText = `Giriş Yap: ${profile.name}`;
+        document.getElementById("profileSelectScreen").style.display = "none";
+        document.getElementById("profilePinScreen").style.display = "block";
+    } else {
+        // Şifresiz giriş yap
+        finalizeProfileSelection(profileId);
+    }
+}
+
+function showProfileSelectScreen() {
+    selectedProfileForPinId = null;
+    enteredPin = "";
+    document.getElementById("profilePinScreen").style.display = "none";
+    document.getElementById("profileSelectScreen").style.display = "block";
+}
+
+function finalizeProfileSelection(profileId) {
     state.activeProfileId = profileId;
     saveState();
     closeModal("profileSelectorModal");
     
-    // UI Güncelle
+    // UI ve ekran geçişi sıfırlama
+    showProfileSelectScreen();
+    
     renderProfiles();
     updateUI();
 
-    // Çocuk profili seçildiğinde otomatik olarak Çocuk Dünyası sekmesine geçiş yap
     const activeProfile = getActiveProfile();
     if (activeProfile.role === "Çocuk") {
         document.querySelector("[data-tab='kidzone']").click();
@@ -316,15 +355,65 @@ function selectProfile(profileId) {
     }
 }
 
+function handlePinInput(val) {
+    if (!selectedProfileForPinId) return;
+    const profile = state.profiles.find(p => p.id === selectedProfileForPinId);
+    if (!profile) return;
+
+    if (val === "clear") {
+        enteredPin = "";
+    } else if (val === "backspace") {
+        enteredPin = enteredPin.slice(0, -1);
+    } else {
+        if (enteredPin.length < 4) {
+            enteredPin += val;
+        }
+    }
+
+    updatePinDots();
+
+    if (enteredPin.length === 4) {
+        if (enteredPin === profile.pin) {
+            // Başarılı giriş
+            setTimeout(() => {
+                finalizeProfileSelection(selectedProfileForPinId);
+            }, 200);
+        } else {
+            // Hatalı PIN - salla ve sıfırla
+            const pinDotsDiv = document.getElementById("pinDots");
+            pinDotsDiv.classList.add("shake");
+            
+            setTimeout(() => {
+                pinDotsDiv.classList.remove("shake");
+                enteredPin = "";
+                updatePinDots();
+            }, 400);
+        }
+    }
+}
+
+function updatePinDots() {
+    const dots = document.querySelectorAll("#pinDots .dot");
+    dots.forEach((dot, idx) => {
+        if (idx < enteredPin.length) {
+            dot.classList.add("filled");
+        } else {
+            dot.classList.remove("filled");
+        }
+    });
+}
+
 function addNewProfile() {
     const nameInput = document.getElementById("profName");
     const roleInput = document.getElementById("profRole");
+    const pinInput = document.getElementById("profPin");
     const avatarInput = document.querySelector("input[name='avatar']:checked");
 
     const newProfile = {
         id: "p_" + Date.now(),
         name: nameInput.value.trim(),
         role: roleInput.value,
+        pin: pinInput.value.trim(),
         avatar: avatarInput.value,
         balanceContribution: roleInput.value === "Çocuk" ? 0 : 5000 // başlangıç simülasyon bakiyesi
     };
@@ -333,6 +422,7 @@ function addNewProfile() {
     saveState();
 
     nameInput.value = "";
+    pinInput.value = "";
     closeModal("addProfileModal");
     renderProfiles();
 }
