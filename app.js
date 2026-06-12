@@ -58,6 +58,7 @@ const DEMO_DATA_STATE = {
         btc: 0.015,
         history: [82000, 85000, 89000, 87500, 93000, 94600]
     },
+    trackedAssets: { usd: true, eur: true, gold: true, btc: true },
     shoppingCart: []
 };
 
@@ -90,6 +91,7 @@ const DEFAULT_STATE = {
         btc: 0,
         history: []
     },
+    trackedAssets: { usd: true, eur: true, gold: true, btc: true },
     shoppingCart: []
 };
 
@@ -129,6 +131,9 @@ function initApp() {
             }
             if (!state.shoppingCart) {
                 state.shoppingCart = [];
+            }
+            if (!state.trackedAssets) {
+                state.trackedAssets = { usd: true, eur: true, gold: true, btc: true };
             }
         } catch (e) {
             console.error("State parse hatası, varsayılan yükleniyor...", e);
@@ -462,6 +467,19 @@ function bindEvents() {
         });
     }
 
+    const refreshRatesBtn = document.getElementById("refreshRatesBtn");
+    if (refreshRatesBtn) {
+        refreshRatesBtn.addEventListener("click", () => {
+            fetchRealTimeRates().then(() => {
+                renderInvestments();
+                showToast("Gerçek zamanlı piyasa kurları güncellendi.", "success");
+            }).catch(err => {
+                console.error("Real-time kurlar çekilemedi:", err);
+                showToast("Canlı kurlar çekilirken hata oluştu!", "error");
+            });
+        });
+    }
+
     const assetTradeForm = document.getElementById("assetTradeForm");
     if (assetTradeForm) {
         assetTradeForm.addEventListener("submit", (e) => {
@@ -516,6 +534,22 @@ function bindEvents() {
             buyCart();
         });
     }
+
+    // === YATIRIM SEÇİM LİSTESİ FİLTRE DİNLEYİCİSİ ===
+    const trackers = ["trackUsd", "trackEur", "trackGold", "trackBtc"];
+    trackers.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener("change", () => {
+                const key = id.replace("track", "").toLowerCase(); // usd, eur, gold, btc
+                if (!state.trackedAssets) state.trackedAssets = { usd: true, eur: true, gold: true, btc: true };
+                state.trackedAssets[key] = el.checked;
+                saveState();
+                renderInvestments();
+                showToast("Takip listesi güncellendi.", "info");
+            });
+        }
+    });
 }
 
 // ==========================================================================
@@ -736,6 +770,12 @@ function switchTab(tabName) {
         renderShoppingCart();
     } else if (tabName === "investments") {
         renderInvestments();
+        fetchRealTimeRates().then(() => {
+            renderInvestments();
+            showToast("Gerçek zamanlı piyasa kurları güncellendi.", "success");
+        }).catch(err => {
+            console.error("Gerçek zamanlı kurlar alınamadı:", err);
+        });
     }
 }
 
@@ -2620,6 +2660,44 @@ function renderInvestments() {
     if (!state.portfolio) {
         state.portfolio = { usd: 0, eur: 0, gold: 0, btc: 0, history: [] };
     }
+    if (!state.trackedAssets) {
+        state.trackedAssets = { usd: true, eur: true, gold: true, btc: true };
+    }
+    
+    // Checkbox durumlarını güncelle
+    document.getElementById("trackUsd").checked = state.trackedAssets.usd;
+    document.getElementById("trackEur").checked = state.trackedAssets.eur;
+    document.getElementById("trackGold").checked = state.trackedAssets.gold;
+    document.getElementById("trackBtc").checked = state.trackedAssets.btc;
+    
+    // Varlık kartlarını göster veya gizle
+    document.getElementById("cardUsd").style.display = state.trackedAssets.usd ? "block" : "none";
+    document.getElementById("cardEur").style.display = state.trackedAssets.eur ? "block" : "none";
+    document.getElementById("cardGold").style.display = state.trackedAssets.gold ? "block" : "none";
+    document.getElementById("cardBtc").style.display = state.trackedAssets.btc ? "block" : "none";
+    
+    // Form asset select seçeneklerini sadece takip edilenlere göre güncelle
+    const tradeAssetSelect = document.getElementById("tradeAsset");
+    if (tradeAssetSelect) {
+        tradeAssetSelect.innerHTML = "";
+        const labels = { usd: "Dolar ($)", eur: "Euro (€)", gold: "Altın (Gram)", btc: "Bitcoin (BTC)" };
+        let count = 0;
+        Object.keys(state.trackedAssets).forEach(key => {
+            if (state.trackedAssets[key]) {
+                const opt = document.createElement("option");
+                opt.value = key;
+                opt.innerText = labels[key];
+                tradeAssetSelect.appendChild(opt);
+                count++;
+            }
+        });
+        if (count === 0) {
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.innerText = "Önce bir varlık seçin";
+            tradeAssetSelect.appendChild(opt);
+        }
+    }
     
     // Değerleri HTML'e yaz
     document.getElementById("portfolioUsd").innerText = `$${state.portfolio.usd.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -2656,6 +2734,9 @@ function renderInvestments() {
     
     // Çizgi grafiğini çiz
     renderPortfolioChart();
+    
+    // Alım Satım Geçmişini çiz
+    renderTradeHistory();
 }
 
 function updateTrendDisplay(elementId, current, last) {
@@ -2743,7 +2824,12 @@ function tradeAsset(e) {
             category: "Diğer",
             date: new Date().toISOString().split('T')[0],
             memberId: state.activeProfileId,
-            isRecurring: false
+            isRecurring: false,
+            isTrade: true,
+            tradeType: "buy",
+            asset: asset,
+            assetAmount: amount,
+            rate: rate
         };
         state.transactions.unshift(trans);
         showToast(`${amount} ${asset.toUpperCase()} başarıyla satın alındı!`, "success");
@@ -2766,7 +2852,12 @@ function tradeAsset(e) {
             category: "Maaş",
             date: new Date().toISOString().split('T')[0],
             memberId: state.activeProfileId,
-            isRecurring: false
+            isRecurring: false,
+            isTrade: true,
+            tradeType: "sell",
+            asset: asset,
+            assetAmount: amount,
+            rate: rate
         };
         state.transactions.unshift(trans);
         showToast(`${amount} ${asset.toUpperCase()} başarıyla nakite çevrildi!`, "success");
@@ -3031,3 +3122,175 @@ function simulateGoalDelay(totalSum) {
 
 // Global scope helpers for onclick callbacks inside table dynamic render
 window.removeFromCart = removeFromCart;
+
+// --- 5. Gerçek Zamanlı Kurlar ve Alım-Satım Geçmişi & Şablonlar ---
+async function fetchRealTimeRates() {
+    console.log("Gerçek zamanlı kurlar çekiliyor...");
+    
+    // Trend hesaplamaları için mevcut kurları yedekle
+    lastRates = { ...exchangeRates };
+    
+    let usdTry = exchangeRates.usd;
+    let eurTry = exchangeRates.eur;
+    let btcTry = exchangeRates.btc;
+    let goldTry = exchangeRates.gold;
+    
+    try {
+        // 1. Döviz kurlarını çek (USD ve EUR)
+        const erResponse = await fetch("https://open.er-api.com/v6/latest/USD");
+        if (erResponse.ok) {
+            const erData = await erResponse.json();
+            if (erData.rates && erData.rates.TRY) {
+                usdTry = parseFloat(erData.rates.TRY);
+                if (erData.rates.EUR) {
+                    eurTry = usdTry / parseFloat(erData.rates.EUR);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Döviz kurları çekilemedi, varsayılan/mevcut kurlar kullanılıyor:", e);
+    }
+    
+    try {
+        // 2. Bitcoin kurunu çek
+        const btcResponse = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCTRY");
+        if (btcResponse.ok) {
+            const btcData = await btcResponse.json();
+            btcTry = parseFloat(btcData.price);
+        } else {
+            // BTCTRY başarısız olursa BTCUSDT * USDTRY dene
+            const btcUsdtResponse = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
+            if (btcUsdtResponse.ok) {
+                const btcUsdtData = await btcUsdtResponse.json();
+                btcTry = parseFloat(btcUsdtData.price) * usdTry;
+            }
+        }
+    } catch (e) {
+        console.error("BTC kuru çekilemedi, varsayılan/mevcut kur kullanılıyor:", e);
+    }
+    
+    try {
+        // 3. Altın kurunu PAXGUSDT (Binance) ve USDTRY üzerinden gr altın olarak hesapla (1 troy ons = 31.1034768 gr)
+        const paxgResponse = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT");
+        if (paxgResponse.ok) {
+            const paxgData = await paxgResponse.json();
+            const paxgUsdt = parseFloat(paxgData.price);
+            goldTry = (paxgUsdt * usdTry) / 31.1034768;
+        }
+    } catch (e) {
+        console.error("Altın kuru çekilemedi, varsayılan/mevcut kur kullanılıyor:", e);
+    }
+    
+    // Global kurları güncelle
+    exchangeRates.usd = usdTry;
+    exchangeRates.eur = eurTry;
+    exchangeRates.btc = btcTry;
+    exchangeRates.gold = goldTry;
+    
+    console.log("Gerçek zamanlı kurlar güncellendi:", exchangeRates);
+}
+
+function renderTradeHistory() {
+    const list = document.getElementById("tradeHistoryList");
+    if (!list) return;
+    
+    list.innerHTML = "";
+    
+    if (!state.transactions) state.transactions = [];
+    
+    // Sadece alım satım işlemlerini filtrele
+    const trades = state.transactions.filter(t => t.isTrade);
+    
+    // Sadece kullanıcının takip etmeyi seçtiği yatırımları filtrele
+    const filteredTrades = trades.filter(t => {
+        const isTracked = state.trackedAssets && state.trackedAssets[t.asset];
+        return isTracked === true;
+    });
+    
+    if (filteredTrades.length === 0) {
+        list.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 20px 0;">Henüz takip edilen varlıklar için alım-satım işlemi bulunmuyor.</td></tr>`;
+        return;
+    }
+    
+    // Son 15 işlemi listele
+    filteredTrades.slice(0, 15).forEach(t => {
+        const row = document.createElement("tr");
+        const typeLabel = t.tradeType === "buy" 
+            ? `<span style="background: rgba(16, 185, 129, 0.1); color: var(--color-green); border: 1px solid rgba(16, 185, 129, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Alış</span>`
+            : `<span style="background: rgba(239, 68, 68, 0.1); color: var(--color-red); border: 1px solid rgba(239, 68, 68, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Satış</span>`;
+            
+        const assetLabels = { usd: "Dolar ($)", eur: "Euro (€)", gold: "Altın (gr)", btc: "Bitcoin" };
+        const assetLabel = assetLabels[t.asset] || t.asset.toUpperCase();
+        
+        row.innerHTML = `
+            <td>${t.date}</td>
+            <td>${typeLabel}</td>
+            <td><strong>${assetLabel}</strong></td>
+            <td class="text-right">${t.assetAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</td>
+            <td class="text-right">${t.rate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺</td>
+            <td class="text-right text-neon-cyan" style="font-weight: bold;">${formatCurrency(t.amount)}</td>
+        `;
+        list.appendChild(row);
+    });
+}
+
+function addPresetScenario(type) {
+    if (!state.scenarios) state.scenarios = [];
+    
+    let newScenario = null;
+    const now = Date.now();
+    
+    if (type === 'maas_zammi') {
+        newScenario = {
+            id: "s_" + now,
+            name: "Maaş Zammı (+15K)",
+            type: "income",
+            amount: 15000,
+            duration: 12,
+            startMonth: 1,
+            active: true
+        };
+    } else if (type === 'kira_artisi') {
+        newScenario = {
+            id: "s_" + now,
+            name: "Kira Artışı Zammı",
+            type: "expense",
+            amount: 3000,
+            duration: 12,
+            startMonth: 1,
+            active: true
+        };
+    } else if (type === 'araba_kredisi') {
+        newScenario = {
+            id: "s_" + now,
+            name: "Araba Kredisi Taksidi",
+            type: "expense",
+            amount: 8000,
+            duration: 12,
+            startMonth: 1,
+            active: true
+        };
+    } else if (type === 'tatil_masrafi') {
+        newScenario = {
+            id: "s_" + now,
+            name: "Yaz Tatili Peşinatı",
+            type: "one_time_expense",
+            amount: 20000,
+            duration: 1,
+            startMonth: 2,
+            active: true
+        };
+    }
+    
+    if (newScenario) {
+        state.scenarios.push(newScenario);
+        saveState();
+        updateUI();
+        showToast(`"${newScenario.name}" senaryosu başarıyla simülasyona eklendi!`, "success");
+    }
+}
+
+// Global scope helpers
+window.fetchRealTimeRates = fetchRealTimeRates;
+window.renderTradeHistory = renderTradeHistory;
+window.addPresetScenario = addPresetScenario;
