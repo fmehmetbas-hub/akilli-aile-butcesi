@@ -780,7 +780,7 @@
                 </section>
 
                 <!-- 6. INVESTMENTS PANEL -->
-                <section class="tab-panel parent-only" id="investmentsPanel">
+                <section class="tab-panel" id="investmentsPanel">
                     <div class="panel-layout">
                         <!-- Left Side: Portfolio Cards & Chart -->
                         <div class="glass-card flex-2">
@@ -895,8 +895,10 @@
                                     <div class="form-group">
                                         <label for="tradeType">İşlem Yönü</label>
                                         <select id="tradeType" required>
-                                            <option value="buy">Varlık Satın Al (TL ile)</option>
-                                            <option value="sell">Varlık Sat (TL'ye Dönüştür)</option>
+                                            <option value="buy">Varlık Satın Al (Ortak Kasadan Düşer)</option>
+                                            <option value="sell">Varlık Sat (Ortak Kasaya Eklenir)</option>
+                                            <option value="add_direct">Doğrudan Varlık Ekle (Ortak Kasa Etkilenmez)</option>
+                                            <option value="remove_direct">Doğrudan Varlık Çıkar (Ortak Kasa Etkilenmez)</option>
                                         </select>
                                     </div>
                                     <div class="form-group">

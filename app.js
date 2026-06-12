@@ -497,9 +497,19 @@ function bindEvents() {
         if (!tradeAmountInput || !tradeAssetSelect || !tradeEstTotal) return;
         const amount = parseFloat(tradeAmountInput.value) || 0;
         const asset = tradeAssetSelect.value;
+        if (!asset) {
+            tradeEstTotal.innerText = "0,00 ₺";
+            return;
+        }
         const rate = exchangeRates[asset] || 0;
         const total = amount * rate;
-        tradeEstTotal.innerText = formatCurrency(total);
+        
+        const type = tradeTypeSelect ? tradeTypeSelect.value : "buy";
+        if (type === "add_direct" || type === "remove_direct") {
+            tradeEstTotal.innerHTML = `${formatCurrency(total)} <span style="font-size: 9px; color: var(--text-muted);">(Kasa Etkilenmez)</span>`;
+        } else {
+            tradeEstTotal.innerText = formatCurrency(total);
+        }
     }
 
     if (tradeAmountInput) {
@@ -2805,6 +2815,7 @@ function tradeAsset(e) {
     const rate = exchangeRates[asset];
     const totalCost = amount * rate;
     const currentBalance = getFamilyBalance();
+    const member = state.profiles.find(p => p.id === state.activeProfileId);
     
     if (tradeType === "buy") {
         if (currentBalance < totalCost) {
@@ -2814,6 +2825,11 @@ function tradeAsset(e) {
         
         // Varlığı ekle
         state.portfolio[asset] = (state.portfolio[asset] || 0) + amount;
+        
+        // Ortak bakiye düş
+        if (member) {
+            member.balanceContribution -= totalCost;
+        }
         
         // Ortak bakiyeden düş (Harcama olarak kaydet)
         const trans = {
@@ -2833,7 +2849,7 @@ function tradeAsset(e) {
         };
         state.transactions.unshift(trans);
         showToast(`${amount} ${asset.toUpperCase()} başarıyla satın alındı!`, "success");
-    } else {
+    } else if (tradeType === "sell") {
         // Satış işlemi
         if ((state.portfolio[asset] || 0) < amount) {
             showToast(`Yetersiz varlık miktarı! Portföyünüzde yeterli ${asset.toUpperCase()} bulunmuyor.`, "error");
@@ -2842,6 +2858,11 @@ function tradeAsset(e) {
         
         // Varlığı düş
         state.portfolio[asset] -= amount;
+        
+        // Ortak bakiye ekle
+        if (member) {
+            member.balanceContribution += totalCost;
+        }
         
         // Ortak bakiyeye ekle (Gelir olarak kaydet)
         const trans = {
@@ -2861,6 +2882,53 @@ function tradeAsset(e) {
         };
         state.transactions.unshift(trans);
         showToast(`${amount} ${asset.toUpperCase()} başarıyla nakite çevrildi!`, "success");
+    } else if (tradeType === "add_direct") {
+        // Doğrudan Varlık Ekle (Kasa Etkilenmez)
+        state.portfolio[asset] = (state.portfolio[asset] || 0) + amount;
+        
+        const trans = {
+            id: "t_" + Date.now(),
+            desc: `${asset.toUpperCase()} Doğrudan Girişi (${amount} Birim)`,
+            amount: totalCost,
+            type: "direct_add",
+            category: "Diğer",
+            date: new Date().toISOString().split('T')[0],
+            memberId: state.activeProfileId,
+            isRecurring: false,
+            isTrade: true,
+            tradeType: "add_direct",
+            asset: asset,
+            assetAmount: amount,
+            rate: rate
+        };
+        state.transactions.unshift(trans);
+        showToast(`${amount} ${asset.toUpperCase()} portföye doğrudan eklendi!`, "success");
+    } else if (tradeType === "remove_direct") {
+        // Doğrudan Varlık Çıkar (Kasa Etkilenmez)
+        if ((state.portfolio[asset] || 0) < amount) {
+            showToast(`Yetersiz varlık miktarı! Portföyünüzde yeterli ${asset.toUpperCase()} bulunmuyor.`, "error");
+            return;
+        }
+        
+        state.portfolio[asset] -= amount;
+        
+        const trans = {
+            id: "t_" + Date.now(),
+            desc: `${asset.toUpperCase()} Doğrudan Çıkışı (${amount} Birim)`,
+            amount: totalCost,
+            type: "direct_remove",
+            category: "Diğer",
+            date: new Date().toISOString().split('T')[0],
+            memberId: state.activeProfileId,
+            isRecurring: false,
+            isTrade: true,
+            tradeType: "remove_direct",
+            asset: asset,
+            assetAmount: amount,
+            rate: rate
+        };
+        state.transactions.unshift(trans);
+        showToast(`${amount} ${asset.toUpperCase()} portföyden doğrudan çıkarıldı!`, "success");
     }
     
     // Toplam portföy değerini güncelle ve geçmişe ekle
@@ -3217,7 +3285,11 @@ function renderTradeHistory() {
         const row = document.createElement("tr");
         const typeLabel = t.tradeType === "buy" 
             ? `<span style="background: rgba(16, 185, 129, 0.1); color: var(--color-green); border: 1px solid rgba(16, 185, 129, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Alış</span>`
-            : `<span style="background: rgba(239, 68, 68, 0.1); color: var(--color-red); border: 1px solid rgba(239, 68, 68, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Satış</span>`;
+            : t.tradeType === "sell"
+            ? `<span style="background: rgba(239, 68, 68, 0.1); color: var(--color-red); border: 1px solid rgba(239, 68, 68, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Satış</span>`
+            : t.tradeType === "add_direct"
+            ? `<span style="background: rgba(0, 242, 254, 0.1); color: var(--color-cyan); border: 1px solid rgba(0, 242, 254, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Doğrudan Ekleme</span>`
+            : `<span style="background: rgba(245, 158, 11, 0.1); color: var(--color-orange); border: 1px solid rgba(245, 158, 11, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Doğrudan Çıkarma</span>`;
             
         const assetLabels = { usd: "Dolar ($)", eur: "Euro (€)", gold: "Altın (gr)", btc: "Bitcoin" };
         const assetLabel = assetLabels[t.asset] || t.asset.toUpperCase();
