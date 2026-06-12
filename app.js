@@ -748,8 +748,8 @@ function loadDemoData() {
 // ==========================================================================
 function switchTab(tabName) {
     const activeProfile = getActiveProfile();
-    if (activeProfile && activeProfile.role === "Çocuk" && tabName === "investments") {
-        showToast("Yatırım paneline sadece ebeveynler erişebilir!", "warning");
+    if (activeProfile && activeProfile.role === "Çocuk" && (tabName === "investments" || tabName === "savings")) {
+        showToast("Bu panele sadece ebeveynler erişebilir!", "warning");
         switchTab("dashboard");
         
         // Menüdeki active class'ı güncelle
