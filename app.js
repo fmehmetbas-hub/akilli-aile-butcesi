@@ -127,8 +127,9 @@ function checkWelcomeFlow() {
         } else {
             updateUI();
             
-            // Eğer tanıtım turu tamamlanmadıysa başlat
-            if (!state.onboardingCompleted) {
+            // Eğer tanıtım turu tamamlanmadıysa başlat (Sadece Ebeveyn için)
+            const activeProfile = getActiveProfile();
+            if (!state.onboardingCompleted && activeProfile && activeProfile.role === "Ebeveyn") {
                 setTimeout(() => {
                     startOnboardingTour();
                 }, 1000);
@@ -300,6 +301,9 @@ function bindEvents() {
         e.preventDefault();
         const email = document.getElementById("regEmail").value.trim();
         const password = document.getElementById("regPass").value;
+        
+        // Eski sürümden kalan localStorage profillerini ve bütçe kalıntılarını tamamen sıfırla
+        state = JSON.parse(JSON.stringify(DEFAULT_STATE));
         state.account = { email, password };
         saveState();
         
@@ -682,6 +686,13 @@ function finalizeProfileSelection(profileId) {
         document.querySelector("[data-tab='kidzone']").click();
     } else {
         document.querySelector("[data-tab='dashboard']").click();
+        
+        // Ebeveyn girişi sonrası eğer tanıtım turu tamamlanmadıysa başlat
+        if (!state.onboardingCompleted) {
+            setTimeout(() => {
+                startOnboardingTour();
+            }, 1000);
+        }
     }
 }
 
