@@ -3,7 +3,8 @@
    ========================================================================== */
 
 // varsayılan bütçe durum şablonu (Kullanıcı ilk açtığında wow etkisi yaratacak hazır veriler)
-const DEFAULT_STATE = {
+// Demo verileri (Kullanıcı dilediğinde sistemi doldurabilmesi için)
+const DEMO_DATA_STATE = {
     profiles: [
         { id: "p1", name: "Faruk", role: "Ebeveyn", avatar: "fa-user-tie", balanceContribution: 32000, pin: "1234" },
         { id: "p2", name: "Ayşe", role: "Ebeveyn", avatar: "fa-user-nurse", balanceContribution: 18000, pin: "5678" },
@@ -35,16 +36,38 @@ const DEFAULT_STATE = {
         { id: "s1", name: "Kira Artışı (%50)", type: "expense", amount: 9000, duration: 12, startMonth: 2, active: false }
     ],
     tasks: [
-        { id: "tk1", title: "Haftalık 2 Kitap Okumak", reward: 80, assignedTo: "p3", status: "completed" }, // completed: onaylanmış
-        { id: "tk2", title: "Odasını Düzenli Toplamak", reward: 50, assignedTo: "p3", status: "review" },    // review: onay bekliyor
-        { id: "tk3", title: "Akşam Sofra Kurumuna Yardım", reward: 30, assignedTo: "p3", status: "pending" }  // pending: yapılmadı
+        { id: "tk1", title: "Haftalık 2 Kitap Okumak", reward: 80, assignedTo: "p3", status: "completed" },
+        { id: "tk2", title: "Odasını Düzenli Toplamak", reward: 50, assignedTo: "p3", status: "review" },
+        { id: "tk3", title: "Akşam Sofra Kurumuna Yardım", reward: 30, assignedTo: "p3", status: "pending" }
     ]
 };
 
-// Global Uygulama Durumu (State)
+// Temiz Başlangıç Durumu
+const DEFAULT_STATE = {
+    account: null, // { email, password }
+    profiles: [],
+    activeProfileId: null,
+    transactions: [],
+    debts: [],
+    goals: [],
+    scenarios: [],
+    tasks: [],
+    onboardingCompleted: false
+};
+
+// Global Uygulama Durum Değişkenleri
 let state = null;
 let selectedProfileForPinId = null;
 let enteredPin = "";
+
+// İnteraktif Tur Adımları
+const tourSteps = [
+    { target: ".sidebar-nav", title: "Menü ve Gezinme", text: "Buradan Bütçe Paneli, Gelir/Gider geçmişi, Borç Stratejileri ve Karar Simülatörü sayfaları arasında geçiş yapabilirsiniz.", position: "right" },
+    { target: ".header-summary-card", title: "Ortak Bakiye", text: "Ailenizin ortak bütçesindeki toplam parayı buradan anlık takip edebilirsiniz.", position: "bottom" },
+    { target: ".profile-widget", title: "Profil Değiştirici", text: "Eşiniz veya çocuklarınızın hesapları arasında şık ve güvenli PIN kodlarıyla buradan geçiş yapabilirsiniz.", position: "right" },
+    { target: "#demoDataAlert", title: "Demo Veri Yükle", text: "Sisteminiz şu an tamamen temiz. Uygulamanın tüm özelliklerini doldurulmuş grafiklerle görmek için bu butona basarak demo verilerini hemen yükleyebilirsiniz!", position: "bottom" }
+];
+let currentTourStep = 0;
 
 // ==========================================================================
 // UYGULAMA BAŞLANGICI VE LOAD İŞLEMLERİ
@@ -54,7 +77,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function initApp() {
-    // LocalStorage kontrolü
     const storedState = localStorage.getItem("smart_budget_state");
     if (storedState) {
         try {
@@ -77,8 +99,42 @@ function initApp() {
     // Event Dinleyicilerini Bağla
     bindEvents();
 
-    // Sayfayı render et
-    updateUI();
+    // Hoş geldiniz ekranı & Giriş akışını kontrol et
+    checkWelcomeFlow();
+}
+
+function checkWelcomeFlow() {
+    const overlay = document.getElementById("welcomeOverlay");
+    
+    if (!state.account) {
+        // Adım 1: Kayıt / Giriş Ekranı
+        overlay.style.display = "flex";
+        document.getElementById("welcomeAuthScreen").style.display = "block";
+        document.getElementById("welcomeProfileSetupScreen").style.display = "none";
+    } else if (state.profiles.length === 0) {
+        // Adım 2: Profil Kurulum Ekranı
+        overlay.style.display = "flex";
+        document.getElementById("welcomeAuthScreen").style.display = "none";
+        document.getElementById("welcomeProfileSetupScreen").style.display = "block";
+        renderSetupProfilesList();
+    } else {
+        // Adım 3: Sitemizi Göster
+        overlay.style.display = "none";
+        
+        // Eğer aktif profil yoksa profil seçme modalını zorunlu aç
+        if (!state.activeProfileId) {
+            openModal("profileSelectorModal");
+        } else {
+            updateUI();
+            
+            // Eğer tanıtım turu tamamlanmadıysa başlat
+            if (!state.onboardingCompleted) {
+                setTimeout(() => {
+                    startOnboardingTour();
+                }, 1000);
+            }
+        }
+    }
 }
 
 function saveState() {
@@ -222,6 +278,280 @@ function bindEvents() {
     document.getElementById("backToProfilesBtn").addEventListener("click", () => {
         showProfileSelectScreen();
     });
+
+    // === HOŞ GELDİNİZ, KAYIT & PROFİL KURULUMU EVENT BINDINGS ===
+    const tabRegister = document.getElementById("tabRegister");
+    const tabLogin = document.getElementById("tabLogin");
+    const registerForm = document.getElementById("registerForm");
+    const loginForm = document.getElementById("loginForm");
+    
+    if (tabRegister && tabLogin) {
+        tabRegister.addEventListener("change", () => {
+            registerForm.style.display = "block";
+            loginForm.style.display = "none";
+        });
+        tabLogin.addEventListener("change", () => {
+            registerForm.style.display = "none";
+            loginForm.style.display = "block";
+        });
+    }
+
+    document.getElementById("registerForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const email = document.getElementById("regEmail").value.trim();
+        const password = document.getElementById("regPass").value;
+        state.account = { email, password };
+        saveState();
+        
+        document.getElementById("regEmail").value = "";
+        document.getElementById("regPass").value = "";
+        
+        checkWelcomeFlow();
+    });
+
+    document.getElementById("loginForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const email = document.getElementById("logEmail").value.trim();
+        const password = document.getElementById("logPass").value;
+        
+        if (state.account && state.account.email === email && state.account.password === password) {
+            checkWelcomeFlow();
+        } else {
+            alert("E-posta veya şifre hatalı! Lütfen tekrar deneyiniz.");
+        }
+    });
+
+    document.getElementById("setupProfileForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const nameInput = document.getElementById("setupProfName");
+        const roleInput = document.getElementById("setupProfRole");
+        const pinInput = document.getElementById("setupProfPin");
+        const avatarInput = document.querySelector("input[name='setupAvatar']:checked");
+        
+        const newProfile = {
+            id: "p_" + Date.now(),
+            name: nameInput.value.trim(),
+            role: roleInput.value,
+            pin: pinInput.value.trim(),
+            avatar: avatarInput ? avatarInput.value : "fa-user-tie",
+            balanceContribution: 0 // Temiz başlangıç
+        };
+        
+        state.profiles.push(newProfile);
+        saveState();
+        
+        nameInput.value = "";
+        pinInput.value = "";
+        
+        renderSetupProfilesList();
+    });
+
+    document.getElementById("finishSetupBtn").addEventListener("click", () => {
+        if (state.profiles.length > 0) {
+            state.activeProfileId = state.profiles[0].id;
+            saveState();
+            
+            document.getElementById("welcomeOverlay").style.display = "none";
+            updateUI();
+            
+            if (!state.onboardingCompleted) {
+                setTimeout(() => {
+                    startOnboardingTour();
+                }, 1000);
+            }
+        }
+    });
+
+    // === ONBOARDING TOUR EVENT BINDINGS ===
+    document.getElementById("nextTourBtn").addEventListener("click", () => {
+        currentTourStep++;
+        if (currentTourStep < tourSteps.length) {
+            showTourStep(currentTourStep);
+        } else {
+            endTour();
+        }
+    });
+
+    document.getElementById("skipTourBtn").addEventListener("click", () => {
+        endTour();
+    });
+
+    // === DEMO VERİLERİNİ YÜKLEME DINLEYICISI ===
+    const loadDemoBtn = document.getElementById("loadDemoDataBtn");
+    if (loadDemoBtn) {
+        loadDemoBtn.addEventListener("click", () => {
+            loadDemoData();
+        });
+    }
+}
+
+// ==========================================================================
+// KURULUM OVERLAY PROFİL LİSTELEYİCİ VE YARDIMCI METOTLAR
+// ==========================================================================
+function renderSetupProfilesList() {
+    const list = document.getElementById("addedSetupProfilesList");
+    const finishBtn = document.getElementById("finishSetupBtn");
+    if (!list) return;
+    
+    list.innerHTML = "";
+    
+    if (state.profiles.length === 0) {
+        list.innerHTML = `<p class="text-muted text-center py-2" style="font-size: 13px;">Henüz hiç üye eklenmedi. Lütfen en az 1 üye ekleyin.</p>`;
+        if (finishBtn) finishBtn.disabled = true;
+        return;
+    }
+    
+    state.profiles.forEach(p => {
+        const item = document.createElement("div");
+        item.className = "setup-profile-item glass-card";
+        item.style.display = "flex";
+        item.style.justifyContent = "space-between";
+        item.style.alignItems = "center";
+        item.style.padding = "10px 14px";
+        item.style.marginBottom = "8px";
+        item.style.borderRadius = "var(--border-radius-md)";
+        item.style.background = "rgba(255,255,255,0.03)";
+        item.style.border = "1px solid var(--border-color)";
+        item.style.width = "100%";
+        
+        item.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="active-profile-avatar" style="width: 36px; height: 36px; font-size: 14px;">
+                    <i class="fa-solid ${p.avatar}"></i>
+                </div>
+                <div>
+                    <h5 style="margin: 0; font-size: 14px;">${p.name}</h5>
+                    <small class="text-muted" style="font-size: 11px;">${p.role} ${p.pin ? '(PIN\'li)' : ''}</small>
+                </div>
+            </div>
+            <button class="delete-row-btn" onclick="removeSetupProfile('${p.id}')" title="Üyeyi Sil">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        `;
+        list.appendChild(item);
+    });
+    
+    if (finishBtn) finishBtn.disabled = false;
+}
+
+function removeSetupProfile(profileId) {
+    const idx = state.profiles.findIndex(p => p.id === profileId);
+    if (idx !== -1) {
+        state.profiles.splice(idx, 1);
+        saveState();
+        renderSetupProfilesList();
+    }
+}
+window.removeSetupProfile = removeSetupProfile;
+
+// ==========================================================================
+// INTERAKTIF TANITIM TURU (ONBOARDING TOOLTIP) SİSTEMİ
+// ==========================================================================
+function startOnboardingTour() {
+    currentTourStep = 0;
+    showTourStep(currentTourStep);
+}
+
+function showTourStep(idx) {
+    const tooltip = document.getElementById("onboardingTooltip");
+    if (!tooltip) return;
+    
+    if (idx < 0 || idx >= tourSteps.length) {
+        endTour();
+        return;
+    }
+    
+    const step = tourSteps[idx];
+    const targetEl = document.querySelector(step.target);
+    
+    if (!targetEl || targetEl.offsetParent === null) {
+        currentTourStep++;
+        if (currentTourStep < tourSteps.length) {
+            showTourStep(currentTourStep);
+        } else {
+            endTour();
+        }
+        return;
+    }
+    
+    document.getElementById("tourTitle").innerText = step.title;
+    document.getElementById("tourText").innerText = step.text;
+    
+    const nextBtn = document.getElementById("nextTourBtn");
+    if (idx === tourSteps.length - 1) {
+        nextBtn.innerHTML = `Turu Bitir <i class="fa-solid fa-check"></i>`;
+    } else {
+        nextBtn.innerHTML = `İleri <i class="fa-solid fa-arrow-right"></i>`;
+    }
+    
+    tooltip.style.display = "block";
+    tooltip.style.position = "absolute";
+    
+    const targetRect = targetEl.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    
+    tooltip.classList.remove("arrow-top", "arrow-bottom", "arrow-left", "arrow-right");
+    
+    let top = 0;
+    let left = 0;
+    const scrollY = window.scrollY || window.pageYOffset;
+    const scrollX = window.scrollX || window.pageXOffset;
+    
+    if (step.position === "right") {
+        top = targetRect.top + scrollY + (targetRect.height / 2) - (tooltipRect.height / 2);
+        left = targetRect.right + scrollX + 12;
+        tooltip.classList.add("arrow-left");
+    } else if (step.position === "bottom") {
+        top = targetRect.bottom + scrollY + 12;
+        left = targetRect.left + scrollX + (targetRect.width / 2) - (tooltipRect.width / 2);
+        tooltip.classList.add("arrow-top");
+    } else if (step.position === "top") {
+        top = targetRect.top + scrollY - tooltipRect.height - 12;
+        left = targetRect.left + scrollX + (targetRect.width / 2) - (tooltipRect.width / 2);
+        tooltip.classList.add("arrow-bottom");
+    } else if (step.position === "left") {
+        top = targetRect.top + scrollY + (targetRect.height / 2) - (tooltipRect.height / 2);
+        left = targetRect.left + scrollX - tooltipRect.width - 12;
+        tooltip.classList.add("arrow-right");
+    }
+    
+    if (left < 0) left = 10;
+    if (left + tooltipRect.width > window.innerWidth) {
+        left = window.innerWidth - tooltipRect.width - 10;
+    }
+    if (top < 0) top = 10;
+    
+    tooltip.style.top = top + "px";
+    tooltip.style.left = left + "px";
+}
+
+function endTour() {
+    const tooltip = document.getElementById("onboardingTooltip");
+    if (tooltip) {
+        tooltip.style.display = "none";
+    }
+    state.onboardingCompleted = true;
+    saveState();
+}
+
+// ==========================================================================
+// DEMO VERİLERİNİ YÜKLEME SİSTEMİ
+// ==========================================================================
+function loadDemoData() {
+    const confirmLoad = confirm("Uygulamayı dolu verilerle hızlıca test etmek için demo verilerini yüklemek istiyor musunuz?");
+    if (confirmLoad) {
+        const currentAccount = state.account;
+        state = JSON.parse(JSON.stringify(DEMO_DATA_STATE));
+        state.account = currentAccount;
+        state.onboardingCompleted = true;
+        saveState();
+        updateUI();
+        
+        const tooltip = document.getElementById("onboardingTooltip");
+        if (tooltip) tooltip.style.display = "none";
+        
+        alert("Demo verileri başarıyla yüklendi!");
+    }
 }
 
 // ==========================================================================
@@ -1484,6 +1814,17 @@ function updateUI() {
     document.getElementById("statMonthlyIncome").innerText = formatCurrency(financials.monthlyIncome);
     document.getElementById("statMonthlyExpense").innerText = formatCurrency(financials.monthlyExpense);
     document.getElementById("statTotalDebt").innerText = formatCurrency(financials.totalDebt);
+
+    // Demo verisi uyarı banner'ının gösterimi
+    const demoDataAlert = document.getElementById("demoDataAlert");
+    if (demoDataAlert) {
+        const activeProfile = getActiveProfile();
+        if (state.transactions.length === 0 && activeProfile && activeProfile.role === "Ebeveyn") {
+            demoDataAlert.style.display = "flex";
+        } else {
+            demoDataAlert.style.display = "none";
+        }
+    }
 
     // Sekme bazlı render'lar
     renderRecentTransactions();

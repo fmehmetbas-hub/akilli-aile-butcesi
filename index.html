@@ -15,6 +15,105 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="dark-theme">
+    <!-- HOŞ GELDİNİZ, KAYIT & GİRİŞ VE PROFİL KURULUM OVERLAY -->
+    <div class="welcome-overlay" id="welcomeOverlay" style="display: none;">
+        <!-- 1. Kayıt / Giriş Ekranı -->
+        <div class="welcome-card glass-card" id="welcomeAuthScreen">
+            <div class="text-center">
+                <i class="fa-solid fa-brain-circuit brand-icon" style="font-size: 48px; margin-bottom: 16px; display: inline-block;"></i>
+                <h2>Akıllı Aile Bütçesi</h2>
+                <p class="text-muted">Bütçenizi akıllıca yönetmeye başlamak için hesap oluşturun.</p>
+            </div>
+            
+            <div class="segmented-control margin-top">
+                <input type="radio" name="authTab" id="tabRegister" value="register" checked>
+                <label for="tabRegister">Kayıt Ol</label>
+                
+                <input type="radio" name="authTab" id="tabLogin" value="login">
+                <label for="tabLogin">Giriş Yap</label>
+            </div>
+
+            <!-- Kayıt Formu -->
+            <form id="registerForm" class="styled-form margin-top">
+                <div class="form-group">
+                    <label for="regEmail">E-posta Adresi</label>
+                    <input type="email" id="regEmail" required placeholder="ornek@aile.com">
+                </div>
+                <div class="form-group">
+                    <label for="regPass">Şifre</label>
+                    <input type="password" id="regPass" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Hesap Oluştur</button>
+            </form>
+
+            <!-- Giriş Formu (Varsayılan olarak gizli) -->
+            <form id="loginForm" class="styled-form margin-top" style="display: none;">
+                <div class="form-group">
+                    <label for="logEmail">E-posta Adresi</label>
+                    <input type="email" id="logEmail" required placeholder="ornek@aile.com">
+                </div>
+                <div class="form-group">
+                    <label for="logPass">Şifre</label>
+                    <input type="password" id="logPass" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Giriş Yap</button>
+            </form>
+        </div>
+
+        <!-- 2. Profil Kurulum Ekranı -->
+        <div class="welcome-card glass-card" id="welcomeProfileSetupScreen" style="display: none; max-width: 480px;">
+            <div class="text-center">
+                <h2>Aile Profillerini Oluşturun</h2>
+                <p class="text-muted">Bütçeyi yönetecek aile bireylerini sırayla ekleyin.</p>
+            </div>
+            
+            <div class="added-setup-profiles" id="addedSetupProfilesList">
+                <!-- Dinamik eklenen profiller listelenecek -->
+            </div>
+
+            <form id="setupProfileForm" class="styled-form margin-top">
+                <div class="form-group">
+                    <label for="setupProfName">Üye Adı</label>
+                    <input type="text" id="setupProfName" required placeholder="Örn: Ahmet, Ayşe">
+                </div>
+                <div class="form-group">
+                    <label for="setupProfRole">Rolü / Yetkisi</label>
+                    <select id="setupProfRole" required>
+                        <option value="Ebeveyn">Ebeveyn (Tam Yetki)</option>
+                        <option value="Çocuk">Çocuk (Kısıtlı Yetki & Çocuk Modu)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="setupProfPin">Giriş PIN Kodu (4 Hane - İsteğe Bağlı)</label>
+                    <input type="password" id="setupProfPin" pattern="[0-9]*" inputmode="numeric" maxlength="4" placeholder="Örn: 1234">
+                </div>
+                <div class="form-group">
+                    <label>Avatar Seçimi</label>
+                    <div class="avatar-selector">
+                        <input type="radio" name="setupAvatar" id="s_av1" value="fa-user-tie" checked>
+                        <label for="s_av1"><i class="fa-solid fa-user-tie"></i></label>
+                        
+                        <input type="radio" name="setupAvatar" id="s_av2" value="fa-user-astronaut">
+                        <label for="s_av2"><i class="fa-solid fa-user-astronaut"></i></label>
+                        
+                        <input type="radio" name="setupAvatar" id="s_av3" value="fa-user-ninja">
+                        <label for="s_av3"><i class="fa-solid fa-user-ninja"></i></label>
+                        
+                        <input type="radio" name="setupAvatar" id="s_av4" value="fa-user-graduate">
+                        <label for="s_av4"><i class="fa-solid fa-user-graduate"></i></label>
+                        
+                        <input type="radio" name="setupAvatar" id="s_av5" value="fa-user-nurse">
+                        <label for="s_av5"><i class="fa-solid fa-user-nurse"></i></label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-outline btn-block"><i class="fa-solid fa-plus"></i> Üyeyi Ekle</button>
+            </form>
+            
+            <div class="separator"></div>
+            <button class="btn btn-primary btn-block" id="finishSetupBtn" disabled>Kurulumu Tamamla ve Başla (En az 1 üye)</button>
+        </div>
+    </div>
+
     <!-- Main App Layout -->
     <div class="app-container">
         
@@ -99,6 +198,15 @@
                 <!-- 1. DASHBOARD PANEL -->
                 <section class="tab-panel active" id="dashboardPanel">
                     
+                    <!-- Demo Verileri Yükleme Uyarısı (Temiz Bütçeyi Doldurmak İçin) -->
+                    <div class="info-alert" id="demoDataAlert" style="margin-bottom: 20px; display: none;">
+                        <i class="fa-solid fa-wand-magic-sparkles text-neon-cyan" style="font-size: 24px;"></i>
+                        <div style="flex-grow: 1; padding: 0 10px;">
+                            <p><strong>Bütçe Sisteminiz Hazır!</strong> Uygulamayı dolu verilerle hızlıca test etmek için tek tıkla demo verilerini yükleyebilirsiniz.</p>
+                        </div>
+                        <button class="btn btn-sm btn-primary" id="loadDemoDataBtn"><i class="fa-solid fa-cloud-arrow-down"></i> Demo Veri Yükle</button>
+                    </div>
+
                     <!-- Stats Grid -->
                     <div class="stats-grid">
                         <div class="stat-card income">
@@ -724,6 +832,19 @@
                     </div>
                     <button type="submit" class="btn btn-primary btn-block">Görevi Tanımla & Gönder</button>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- INTERAKTIF TANITIM TURU (ONBOARDING TOOLTIP) -->
+    <div class="onboarding-tooltip" id="onboardingTooltip" style="display: none; z-index: 10000;">
+        <div class="tooltip-arrow" id="tooltipArrow"></div>
+        <div class="tooltip-content">
+            <h4 id="tourTitle">Tur Başlığı</h4>
+            <p id="tourText">Açıklama metni.</p>
+            <div class="tooltip-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 10px;">
+                <button class="btn btn-sm btn-outline" id="skipTourBtn">Turu Atla</button>
+                <button class="btn btn-sm btn-primary" id="nextTourBtn">İleri <i class="fa-solid fa-arrow-right"></i></button>
             </div>
         </div>
     </div>
