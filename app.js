@@ -1406,27 +1406,46 @@ function renderDebts() {
 
     while (simDebts.some(d => d.currentTotal > 0) && monthsToPayOff < maxSimMonths) {
         monthsToPayOff++;
-        let extraPayment = netMonthlySavings; // O ayki birikim fazlası ilk borca eklenecek
-
+        
+        // Bu ay borçlar için ayrılan bütçe = netMonthlySavings
+        let monthlyPool = netMonthlySavings;
+        
+        // 1. ADIM: Tüm aktif borçlara faiz işlet
         for (let i = 0; i < simDebts.length; i++) {
             let debt = simDebts[i];
             if (debt.currentTotal <= 0) continue;
-
-            // Aylık faiz ekle
+            
             if (debt.interestRate > 0) {
                 const monthlyInterest = debt.currentTotal * ((debt.interestRate / 100) / 12);
                 debt.currentTotal += monthlyInterest;
             }
-
-            // Normal asgari ödemeyi uygula
-            let payment = Math.min(debt.currentTotal, debt.minPayment);
-            debt.currentTotal -= payment;
-
-            // Eğer stratejideki birikim fazlası varsa ve bu borç hala açıktaysa, birikim fazlasını buraya yatır
-            if (extraPayment > 0 && debt.currentTotal > 0) {
-                let extraPaid = Math.min(debt.currentTotal, extraPayment);
+        }
+        
+        // 2. ADIM: Tüm aktif borçların asgari ödemelerini havuzdan karşılayarak öde
+        for (let i = 0; i < simDebts.length; i++) {
+            let debt = simDebts[i];
+            if (debt.currentTotal <= 0) continue;
+            
+            // Asgari ödeme tutarı (borç kalanından büyük olamaz)
+            let minToPay = Math.min(debt.currentTotal, debt.minPayment);
+            
+            // Havuzda asgariyi karşılayacak kadar para var mı?
+            let paidAmount = Math.min(minToPay, monthlyPool);
+            debt.currentTotal -= paidAmount;
+            monthlyPool -= paidAmount;
+        }
+        
+        // 3. ADIM: Havuzda kalan ekstra parayı seçilen stratejiye göre 1. aktif borca yatır (Booster)
+        if (monthlyPool > 0) {
+            for (let i = 0; i < simDebts.length; i++) {
+                let debt = simDebts[i];
+                if (debt.currentTotal <= 0) continue;
+                
+                let extraPaid = Math.min(debt.currentTotal, monthlyPool);
                 debt.currentTotal -= extraPaid;
-                extraPayment -= extraPaid;
+                monthlyPool -= extraPaid;
+                
+                if (monthlyPool <= 0) break; // Havuz bitti
             }
         }
     }
