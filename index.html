@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akıllı Aile Bütçesi - Akıllı Finansal Yönetim Sistemi</title>
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome CDN for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+    <!-- Main App Layout -->
+    <div class="app-container">
+        
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <i class="fa-solid fa-brain-circuit brand-icon"></i>
+                <h2>Akıllı<span>Bütçe</span></h2>
+            </div>
+
+            <!-- Profile Switcher Widget -->
+            <div class="profile-widget">
+                <div class="active-profile-avatar" id="activeProfileAvatar">
+                    <i class="fa-solid fa-user-tie"></i>
+                </div>
+                <div class="profile-info">
+                    <h4 id="activeProfileName">Yükleniyor...</h4>
+                    <span id="activeProfileRole">Ebeveyn</span>
+                </div>
+                <button class="switch-profile-btn" id="switchProfileBtn" title="Profil Değiştir">
+                    <i class="fa-solid fa-arrows-spin"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item active" data-tab="dashboard">
+                        <i class="fa-solid fa-chart-line"></i>
+                        <span>Panel</span>
+                    </li>
+                    <li class="nav-item" data-tab="transactions">
+                        <i class="fa-solid fa-receipt"></i>
+                        <span>Gelir & Gider</span>
+                    </li>
+                    <li class="nav-item" data-tab="debts">
+                        <i class="fa-solid fa-hand-holding-dollar"></i>
+                        <span>Borçlar & Taksitler</span>
+                    </li>
+                    <li class="nav-item" data-tab="sandbox">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>Karar Simülatörü</span>
+                    </li>
+                    <li class="nav-item" data-tab="kidzone" id="navKidZone">
+                        <i class="fa-solid fa-gamepad"></i>
+                        <span>Çocuk Dünyası</span>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>&copy; 2026 AkıllıBütçe</p>
+                <small>Akıllı Ev Ekonomisi</small>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+            
+            <!-- HEADER -->
+            <header class="app-header">
+                <div class="header-title">
+                    <h1 id="tabTitle">Finansal Durum</h1>
+                    <p id="tabSubtitle">Ailenizin anlık finansal durum özeti ve analizleri.</p>
+                </div>
+                
+                <!-- Quick Overview Balance Card -->
+                <div class="header-summary-card">
+                    <div class="summary-icon">
+                        <i class="fa-solid fa-wallet"></i>
+                    </div>
+                    <div class="summary-details">
+                        <span>Ortak Bakiye</span>
+                        <h3 id="familyTotalBalance">0,00 ₺</h3>
+                    </div>
+                </div>
+            </header>
+
+            <!-- TAB PANELS CONTAINER -->
+            <div class="tab-content-container">
+
+                <!-- 1. DASHBOARD PANEL -->
+                <section class="tab-panel active" id="dashboardPanel">
+                    
+                    <!-- Stats Grid -->
+                    <div class="stats-grid">
+                        <div class="stat-card income">
+                            <div class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                            <div class="stat-info">
+                                <span>Aylık Gelir</span>
+                                <h2 id="statMonthlyIncome">0,00 ₺</h2>
+                            </div>
+                        </div>
+                        <div class="stat-card expense">
+                            <div class="stat-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                            <div class="stat-info">
+                                <span>Aylık Gider</span>
+                                <h2 id="statMonthlyExpense">0,00 ₺</h2>
+                            </div>
+                        </div>
+                        <div class="stat-card debt-stat">
+                            <div class="stat-icon"><i class="fa-solid fa-credit-card"></i></div>
+                            <div class="stat-info">
+                                <span>Toplam Borç</span>
+                                <h2 id="statTotalDebt">0,00 ₺</h2>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="charts-grid">
+                        <!-- Projection Chart Card -->
+                        <div class="chart-card glass-card span-2">
+                            <div class="chart-header">
+                                <h3>12 Aylık Nakit Akışı ve Simülasyon Kıyaslaması</h3>
+                                <p>Normal gidişat ile aktif senaryoların karşılaştırmalı gelecek tahmini.</p>
+                            </div>
+                            <div class="chart-body">
+                                <canvas id="projectionChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Health Radar Chart Card -->
+                        <div class="chart-card glass-card">
+                            <div class="chart-header">
+                                <h3>5 Boyutlu Finansal Sağlık Radarı</h3>
+                                <p>Genel bütçe alışkanlığı değerlendirmesi.</p>
+                            </div>
+                            <div class="chart-body-radar">
+                                <canvas id="healthRadarChart"></canvas>
+                            </div>
+                            <div class="radar-score-footer">
+                                <span>Finansal Sağlık Skoru:</span>
+                                <strong id="healthScoreValue">100 / 100</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Grid (Recent Transactions & Goals) -->
+                    <div class="dashboard-bottom-grid">
+                        <!-- Recent Transactions -->
+                        <div class="glass-card flex-2">
+                            <div class="card-header">
+                                <h3>Son İşlemler</h3>
+                                <button class="btn btn-sm btn-outline" id="goToTransactionsBtn">Tümünü Gör</button>
+                            </div>
+                            <div class="card-body">
+                                <div class="recent-list" id="recentTransactionsList">
+                                    <!-- Dynamic Transaction Items -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Active Saving Goals -->
+                        <div class="glass-card flex-1">
+                            <div class="card-header">
+                                <h3>İstek Listesi & Hedefler</h3>
+                                <button class="btn btn-sm btn-primary" id="openAddGoalModalBtn"><i class="fa-solid fa-plus"></i> Ekle</button>
+                            </div>
+                            <div class="card-body">
+                                <div class="goals-list" id="dashboardGoalsList">
+                                    <!-- Dynamic Goal Items -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. TRANSACTIONS PANEL -->
+                <section class="tab-panel" id="transactionsPanel">
+                    <div class="panel-layout">
+                        <!-- Left Side: List -->
+                        <div class="glass-card flex-2">
+                            <div class="card-header filters-header">
+                                <h3>Gelir & Gider Geçmişi</h3>
+                                <div class="filters-row">
+                                    <select id="filterMember" class="form-input-sm">
+                                        <option value="all">Tüm Üyeler</option>
+                                    </select>
+                                    <select id="filterCategory" class="form-input-sm">
+                                        <option value="all">Tüm Kategoriler</option>
+                                    </select>
+                                    <select id="filterType" class="form-input-sm">
+                                        <option value="all">Tüm İşlemler</option>
+                                        <option value="income">Sadece Gelir</option>
+                                        <option value="expense">Sadece Gider</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="card-body scrollable-card-body">
+                                <div class="transactions-table-container">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Tarih</th>
+                                                <th>Üye</th>
+                                                <th>Kategori</th>
+                                                <th>Açıklama</th>
+                                                <th>Tutar</th>
+                                                <th>Aksiyon</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="transactionsTableBody">
+                                            <!-- Dynamic Rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Add Transaction Form -->
+                        <div class="glass-card flex-1">
+                            <div class="card-header">
+                                <h3>Yeni İşlem Ekle</h3>
+                            </div>
+                            <div class="card-body">
+                                <form id="transactionForm" class="styled-form">
+                                    <div class="form-group">
+                                        <label>İşlem Tipi</label>
+                                        <div class="segmented-control">
+                                            <input type="radio" name="transType" id="typeExpense" value="expense" checked>
+                                            <label for="typeExpense"><i class="fa-solid fa-circle-minus"></i> Gider</label>
+                                            
+                                            <input type="radio" name="transType" id="typeIncome" value="income">
+                                            <label for="typeIncome"><i class="fa-solid fa-circle-plus"></i> Gelir</label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="transDesc">İşlem Açıklaması</label>
+                                        <input type="text" id="transDesc" required placeholder="Örn: Migros Market, Maaş, Netflix">
+                                        <small class="helper-text" id="categorySuggestText">Kategori açıklamaya göre otomatik tahmin edilir.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="transCategory">Kategori</label>
+                                        <select id="transCategory" required>
+                                            <!-- Expense Categories -->
+                                            <option value="Market">Market & Gıda</option>
+                                            <option value="Fatura">Faturalar</option>
+                                            <option value="Kira">Kira & Konut</option>
+                                            <option value="Ulaşım">Ulaşım & Yakıt</option>
+                                            <option value="Abonelik">Eğlence & Abonelik</option>
+                                            <option value="Eğitim">Eğitim</option>
+                                            <option value="Sağlık">Sağlık</option>
+                                            <option value="Giyim">Giyim & Alışveriş</option>
+                                            <!-- Income Categories -->
+                                            <option value="Maaş">Maaş / Gelir</option>
+                                            <option value="Yatırım Geliri">Yatırım Geliri</option>
+                                            <option value="Diğer">Diğer</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="transAmount">Tutar (₺)</label>
+                                        <input type="number" id="transAmount" step="0.01" min="0.01" required placeholder="0,00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="transDate">Tarih</label>
+                                        <input type="date" id="transDate" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="transMember">İşlemi Yapan Üye</label>
+                                        <select id="transMember" required>
+                                            <!-- Dynamic Profiles -->
+                                        </select>
+                                    </div>
+                                    <div class="form-group row-flex">
+                                        <input type="checkbox" id="transIsRecurring">
+                                        <label for="transIsRecurring">Her ay tekrarlanan sabit işlem</label>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-block">İşlemi Kaydet</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. DEBTS PANEL -->
+                <section class="tab-panel" id="debtsPanel">
+                    <div class="panel-layout">
+                        <!-- Left Side: Debt List & Avalanche/Snowball Selector -->
+                        <div class="glass-card flex-2">
+                            <div class="card-header flex-column-mobile">
+                                <h3>Aktif Borçlar ve Geri Ödeme Stratejisi</h3>
+                                <div class="strategy-switch segmented-control-sm">
+                                    <input type="radio" name="debtStrategy" id="stratSnowball" value="snowball" checked>
+                                    <label for="stratSnowball"><i class="fa-solid fa-snowflake"></i> Kartopu (Snowball)</label>
+                                    
+                                    <input type="radio" name="debtStrategy" id="stratAvalanche" value="avalanche">
+                                    <label for="stratAvalanche"><i class="fa-solid fa-fire"></i> Çığ (Avalanche)</label>
+                                </div>
+                            </div>
+                            
+                            <div class="card-body scrollable-card-body">
+                                <!-- Strategy info alert -->
+                                <div class="info-alert" id="strategyExplanation">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                    <p>Yükleniyor...</p>
+                                </div>
+                                
+                                <div class="debt-visualizer-container">
+                                    <h4>Tahmini Borçsuzluk Tarihiniz: <span id="debtFreeDate" class="text-neon-cyan">Hesaplanıyor...</span></h4>
+                                    <!-- Simple timeline bar -->
+                                    <div class="debt-timeline-bar-wrapper">
+                                        <div class="debt-timeline-fill" id="debtTimelineFill" style="width: 0%"></div>
+                                    </div>
+                                </div>
+
+                                <div class="debt-list-container">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Borç İsmi</th>
+                                                <th>Alacaklı</th>
+                                                <th>Kalan Tutar</th>
+                                                <th>Faiz/Maliyet</th>
+                                                <th>Aylık Min. Ödeme</th>
+                                                <th>Geri Ödeme Sırası</th>
+                                                <th>İşlem</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="debtsTableBody">
+                                            <!-- Dynamic Debt Rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Add Debt Form & Bill Splitter -->
+                        <div class="right-sidebar flex-1">
+                            <!-- Add Debt Form -->
+                            <div class="glass-card margin-bottom">
+                                <div class="card-header">
+                                    <h3>Borç / Taksit Ekle</h3>
+                                </div>
+                                <div class="card-body">
+                                    <form id="debtForm" class="styled-form">
+                                        <div class="form-group">
+                                            <label for="debtTitle">Borç / Kredi Adı</label>
+                                            <input type="text" id="debtTitle" required placeholder="Örn: X Bankası Kredisi, Ahmet Borç">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="debtCreditor">Alacaklı Kişi/Kurum</label>
+                                            <input type="text" id="debtCreditor" required placeholder="Örn: Garanti Bankası, Enişte">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="debtTotal">Toplam Borç Tutarı (₺)</label>
+                                            <input type="number" id="debtTotal" step="0.01" min="1" required placeholder="0,00">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="debtInterest">Yıllık Maliyet / Faiz Oranı (%)</label>
+                                            <input type="number" id="debtInterest" step="0.1" min="0" value="0" placeholder="0">
+                                            <small class="helper-text">Faizsiz borçlar için 0 giriniz.</small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="debtMinPayment">Aylık Ödenecek Min. Tutar (₺)</label>
+                                            <input type="number" id="debtMinPayment" step="0.01" min="1" required placeholder="0,00">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-block">Borcu Kaydet</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Family Bill Splitter -->
+                            <div class="glass-card">
+                                <div class="card-header">
+                                    <h3>Ortak Gider Bölüştürücü</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p class="section-description">Kimin kime ne kadar ödemesi gerektiğini dengelemek için ortak harcamaları eşitleyin.</p>
+                                    <div class="splitter-output" id="splitterBalances">
+                                        <!-- Dynamic balance summary -->
+                                        <p class="text-muted">Hesaplanıyor...</p>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline btn-block margin-top" id="settleBalancesBtn">Bakiyeleri Sıfırla (Mahsuplaş)</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. SANDBOX PANEL -->
+                <section class="tab-panel" id="sandboxPanel">
+                    <div class="panel-layout">
+                        <!-- Left Side: Simulator Controls -->
+                        <div class="glass-card flex-1">
+                            <div class="card-header">
+                                <h3>Karar Simülasyon Kontrolleri</h3>
+                            </div>
+                            <div class="card-body">
+                                <p class="section-description">Önemli kararlar almadan önce bütçenizdeki etkisini canlı görün.</p>
+                                
+                                <!-- Sliders for dynamic changes -->
+                                <div class="slider-group">
+                                    <div class="slider-header">
+                                        <span>Yıllık Enflasyon Etkisi (%)</span>
+                                        <strong id="sliderInflationVal">10%</strong>
+                                    </div>
+                                    <input type="range" id="sliderInflation" min="0" max="100" value="10">
+                                </div>
+
+                                <div class="slider-group">
+                                    <div class="slider-header">
+                                        <span>Aylık Sabit Tasarruf Hedefi</span>
+                                        <strong id="sliderSavingsVal">1.000 ₺</strong>
+                                    </div>
+                                    <input type="range" id="sliderSavings" min="0" max="50000" step="500" value="5000">
+                                </div>
+
+                                <div class="separator"></div>
+                                
+                                <!-- Scenarios List -->
+                                <h4>Aktif "Ya Şöyle Olursa?" Senaryoları</h4>
+                                <div class="scenarios-list" id="sandboxScenariosList">
+                                    <!-- Dynamic list of simulated decisions -->
+                                </div>
+                                
+                                <button class="btn btn-primary btn-block margin-top" id="openAddScenarioModalBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Simüle Edilecek Senaryo Ekle</button>
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Sandbox charts & Wishlist Optimizer -->
+                        <div class="right-sidebar flex-2">
+                            <!-- Comparison Chart -->
+                            <div class="glass-card margin-bottom">
+                                <div class="card-header">
+                                    <h3>Bütçe Senaryo Projeksiyonu Kıyaslaması</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-body-large">
+                                        <canvas id="sandboxCompareChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Wishlist & Buying Assistant -->
+                            <div class="glass-card">
+                                <div class="card-header">
+                                    <h3>Satın Alma Asistanı & İstek Listesi</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="assistant-feedback" id="wishlistAssistantFeedback">
+                                        <!-- Dynamic Assistant Tips -->
+                                        <p class="text-muted">Hedef bulunmamaktadır. Eklemek için ana sayfadaki bütçe hedefleri butonunu kullanabilirsiniz.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. KID ZONE PANEL -->
+                <section class="tab-panel" id="kidzonePanel">
+                    <div class="panel-layout">
+                        <!-- Left Side: Task list / Chores -->
+                        <div class="glass-card flex-2">
+                            <div class="card-header">
+                                <h3>Görevler & Harçlık Kazanma Paneli</h3>
+                                <button class="btn btn-sm btn-primary parent-only" id="openAddTaskModalBtn"><i class="fa-solid fa-plus"></i> Görev Ata</button>
+                            </div>
+                            <div class="card-body scrollable-card-body">
+                                <div class="tasks-table-container">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Görev</th>
+                                                <th>Harçlık Ödülü</th>
+                                                <th>Atanan Üye</th>
+                                                <th>Durum</th>
+                                                <th>Aksiyon</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="kidTasksTableBody">
+                                            <!-- Dynamic Rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Kid Piggy Bank / Savings goals & Log -->
+                        <div class="right-sidebar flex-1">
+                            <!-- Kid Balance card -->
+                            <div class="glass-card highlight margin-bottom">
+                                <div class="card-header">
+                                    <h3>Kişisel Kumbaram</h3>
+                                </div>
+                                <div class="card-body text-center">
+                                    <i class="fa-solid fa-piggy-bank piggy-icon"></i>
+                                    <h1 id="kidTotalBalance" class="text-neon-cyan">0,00 ₺</h1>
+                                    <p class="text-muted">Görevleri tamamlayarak birikimini büyütebilirsin!</p>
+                                </div>
+                            </div>
+
+                            <!-- Kid saving goals -->
+                            <div class="glass-card">
+                                <div class="card-header">
+                                    <h3>Biriktirdiğim Hedefler</h3>
+                                </div>
+                                <div class="card-body" id="kidGoalsContainer">
+                                    <!-- Dynamic list of child specific goals -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL: ADD GOAL -->
+    <div class="modal" id="addGoalModal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3>Hedef & İstek Ekle</h3>
+                <span class="close-modal-btn" data-modal="addGoalModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="goalForm" class="styled-form">
+                    <div class="form-group">
+                        <label for="goalTitle">İstek / Hedef Adı</label>
+                        <input type="text" id="goalTitle" required placeholder="Örn: PlayStation 5, Yaz Tatili">
+                    </div>
+                    <div class="form-group">
+                        <label for="goalCost">Hedef Fiyat (₺)</label>
+                        <input type="number" id="goalCost" min="1" required placeholder="0,00">
+                    </div>
+                    <div class="form-group">
+                        <label for="goalMember">Sahibi / İsteyen Kişi</label>
+                        <select id="goalMember" required>
+                            <!-- Dynamic Profiles -->
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Hedefi İstek Listesine Ekle</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD SCENARIO -->
+    <div class="modal" id="addScenarioModal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3>Simülasyon Senaryosu Ekle</h3>
+                <span class="close-modal-btn" data-modal="addScenarioModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="scenarioForm" class="styled-form">
+                    <div class="form-group">
+                        <label for="scenName">Senaryo Adı</label>
+                        <input type="text" id="scenName" required placeholder="Örn: Yeni Araba Almak, Kira Artışı">
+                    </div>
+                    <div class="form-group">
+                        <label for="scenType">İşlem Tipi</label>
+                        <select id="scenType" required>
+                            <option value="expense">Düzenli Aylık Gider Ekle (Örn: Taksit, Kira zammı)</option>
+                            <option value="income">Düzenli Aylık Gelir Ekle (Örn: Zam, Ek iş)</option>
+                            <option value="one_time_expense">Tek Seferlik Büyük Gider (Örn: Peşinat ödeme)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="scenAmount">Aylık / Tek Seferlik Tutar (₺)</label>
+                        <input type="number" id="scenAmount" min="1" required placeholder="0,00">
+                    </div>
+                    <div class="form-group">
+                        <label for="scenDuration">Süre (Aylar)</label>
+                        <input type="number" id="scenDuration" min="1" max="12" value="12" placeholder="12">
+                        <small class="helper-text">Harcamanın bütçeyi kaç ay boyunca etkileyeceği (Tek seferlikte 1 seçiniz).</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="scenStartMonth">Başlangıç Ayı (Bugünden İtibaren)</label>
+                        <input type="number" id="scenStartMonth" min="0" max="11" value="0" placeholder="0">
+                        <small class="helper-text">Kaçıncı aydan sonra başlayacağı (0 = Hemen bu ay).</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Senaryoyu Aktifleştir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PROFILE SWITCHER (LOGIN GRID) -->
+    <div class="modal show" id="profileSelectorModal">
+        <div class="modal-content glass-card max-width-md text-center">
+            <div class="modal-header no-border">
+                <h3>Akıllı Aile Bütçesi</h3>
+                <p>Giriş yapmak için profilinizi seçiniz</p>
+            </div>
+            <div class="modal-body">
+                <div class="profile-grid" id="profileGrid">
+                    <!-- Dynamic Profiles Grid -->
+                </div>
+                <div class="separator"></div>
+                <button class="btn btn-outline" id="openAddProfileBtn"><i class="fa-solid fa-plus"></i> Yeni Üye Ekle</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD PROFILE -->
+    <div class="modal" id="addProfileModal">
+        <div class="modal-content glass-card max-width-sm">
+            <div class="modal-header">
+                <h3>Yeni Aile Üyesi Ekle</h3>
+                <span class="close-modal-btn" data-modal="addProfileModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="profileForm" class="styled-form">
+                    <div class="form-group">
+                        <label for="profName">Üye Adı</label>
+                        <input type="text" id="profName" required placeholder="Örn: Ahmet, Ayşe">
+                    </div>
+                    <div class="form-group">
+                        <label for="profRole">Rolü / Yetkisi</label>
+                        <select id="profRole" required>
+                            <option value="Ebeveyn">Ebeveyn (Tam Yetki)</option>
+                            <option value="Çocuk">Çocuk (Kısıtlı Yetki & Çocuk Modu)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="profAvatar">Avatar Seçimi</label>
+                        <div class="avatar-selector">
+                            <input type="radio" name="avatar" id="av1" value="fa-user-tie" checked>
+                            <label for="av1"><i class="fa-solid fa-user-tie"></i></label>
+                            
+                            <input type="radio" name="avatar" id="av2" value="fa-user-astronaut">
+                            <label for="av2"><i class="fa-solid fa-user-astronaut"></i></label>
+                            
+                            <input type="radio" name="avatar" id="av3" value="fa-user-ninja">
+                            <label for="av3"><i class="fa-solid fa-user-ninja"></i></label>
+                            
+                            <input type="radio" name="avatar" id="av4" value="fa-user-graduate">
+                            <label for="av4"><i class="fa-solid fa-user-graduate"></i></label>
+                            
+                            <input type="radio" name="avatar" id="av5" value="fa-user-nurse">
+                            <label for="av5"><i class="fa-solid fa-user-nurse"></i></label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Profili Kaydet</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD TASK (PARENT ONLY) -->
+    <div class="modal" id="addTaskModal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3>Çocuk İçin Görev Tanımla</h3>
+                <span class="close-modal-btn" data-modal="addTaskModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="taskForm" class="styled-form">
+                    <div class="form-group">
+                        <label for="taskTitle">Görev Açıklaması</label>
+                        <input type="text" id="taskTitle" required placeholder="Örn: Odayı toplamak, Haftalık kitap okumak">
+                    </div>
+                    <div class="form-group">
+                        <label for="taskReward">Harçlık Ödülü (₺)</label>
+                        <input type="number" id="taskReward" min="1" required placeholder="0,00">
+                    </div>
+                    <div class="form-group">
+                        <label for="taskAssignedTo">Görev Verilecek Çocuk</label>
+                        <select id="taskAssignedTo" required>
+                            <!-- Dynamic list of Child profiles -->
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Görevi Tanımla & Gönder</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="charts.js"></script>
+</body>
+</html>
