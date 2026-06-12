@@ -604,6 +604,14 @@ body {
     color: var(--color-red);
     background: var(--color-red-glow);
 }
+.category-badge.direct_add {
+    color: var(--color-cyan);
+    background: var(--color-cyan-glow);
+}
+.category-badge.direct_remove {
+    color: var(--color-orange);
+    background: var(--color-orange-glow);
+}
 
 .item-title {
     font-size: 14px;
@@ -630,6 +638,8 @@ body {
 
 .item-right.income { color: var(--color-green); }
 .item-right.expense { color: var(--color-red); }
+.item-right.direct_add { color: var(--color-cyan); }
+.item-right.direct_remove { color: var(--color-orange); }
 
 /* İstek Listesi / Hedefler */
 .goals-list {
@@ -1322,6 +1332,8 @@ body.role-child .parent-only {
 .text-right { text-align: right; }
 .text-muted { color: var(--text-muted); }
 .text-neon-cyan { color: var(--color-cyan); text-shadow: 0 0 10px var(--color-cyan-glow); }
+.text-neon-orange { color: var(--color-orange); text-shadow: 0 0 10px var(--color-orange-glow); }
+.text-neon-purple { color: var(--color-purple); text-shadow: 0 0 10px var(--color-purple-glow); }
 .text-green { color: var(--color-green); }
 .text-red { color: var(--color-red); }
 .margin-top { margin-top: 16px; }

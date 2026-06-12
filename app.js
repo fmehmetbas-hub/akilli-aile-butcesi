@@ -1037,13 +1037,24 @@ function calculateFinancials() {
     let monthlyIncome = 0;
     let monthlyExpense = 0;
 
-    // Normal ve her ay tekrarlayan işlemleri filtrele
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-11
+    const currentYear = now.getFullYear();
+
     state.transactions.forEach(t => {
-        // Aylık ortalamayı bulabilmek için o ayki işlemlere bakalım
-        if (t.type === "income") {
-            monthlyIncome += t.amount;
-        } else {
-            monthlyExpense += t.amount;
+        if (!t.date) return;
+        const dateParts = t.date.split("-");
+        if (dateParts.length >= 2) {
+            const tYear = parseInt(dateParts[0], 10);
+            const tMonth = parseInt(dateParts[1], 10) - 1; // 0-11
+            
+            if (tMonth === currentMonth && tYear === currentYear) {
+                if (t.type === "income") {
+                    monthlyIncome += t.amount;
+                } else if (t.type === "expense") {
+                    monthlyExpense += t.amount;
+                }
+            }
         }
     });
 
@@ -1222,13 +1233,26 @@ function renderTransactions() {
         const tr = document.createElement("tr");
         const member = state.profiles.find(p => p.id === t.memberId);
         
+        let amountClass = 'text-red';
+        let amountSign = '-';
+        if (t.type === 'income') {
+            amountClass = 'text-green';
+            amountSign = '+';
+        } else if (t.type === 'direct_add') {
+            amountClass = 'text-neon-cyan';
+            amountSign = '+';
+        } else if (t.type === 'direct_remove') {
+            amountClass = 'text-neon-orange';
+            amountSign = '-';
+        }
+        
         tr.innerHTML = `
             <td>${formatDate(t.date)}</td>
             <td><i class="fa-solid ${member ? member.avatar : 'fa-user'}"></i> ${member ? member.name : 'Silinmiş Üye'}</td>
             <td><span class="category-badge-text">${t.category}</span></td>
             <td>${t.desc} ${t.isRecurring ? '<i class="fa-solid fa-arrows-spin text-muted" title="Sabit Harcama"></i>' : ''}</td>
-            <td class="${t.type === 'income' ? 'text-green' : 'text-red'} font-weight-bold">
-                ${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}
+            <td class="${amountClass} font-weight-bold">
+                ${amountSign}${formatCurrency(t.amount)}
             </td>
             <td>
                 <button class="delete-row-btn" onclick="deleteTransaction('${t.id}')">
@@ -1259,7 +1283,19 @@ function renderRecentTransactions() {
         item.className = "transaction-item";
         
         const member = state.profiles.find(p => p.id === t.memberId);
-        const iconClass = t.type === 'income' ? 'fa-circle-plus income' : 'fa-circle-minus expense';
+        
+        let iconClass = 'fa-circle-minus expense';
+        let amountSign = '-';
+        if (t.type === 'income') {
+            iconClass = 'fa-circle-plus income';
+            amountSign = '+';
+        } else if (t.type === 'direct_add') {
+            iconClass = 'fa-circle-plus direct_add';
+            amountSign = '+';
+        } else if (t.type === 'direct_remove') {
+            iconClass = 'fa-circle-minus direct_remove';
+            amountSign = '-';
+        }
 
         item.innerHTML = `
             <div class="item-left">
@@ -1275,7 +1311,7 @@ function renderRecentTransactions() {
                 </div>
             </div>
             <div class="item-right ${t.type}">
-                ${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}
+                ${amountSign}${formatCurrency(t.amount)}
             </div>
         `;
         list.appendChild(item);
@@ -1520,7 +1556,7 @@ function settleSharedBalances() {
         type: "income",
         category: "Diğer",
         date: new Date().toISOString().split('T')[0],
-        memberId: state.profiles.find(p => p.role === "Ebeveyn").id,
+        memberId: state.activeProfileId || state.profiles.find(p => p.role === "Ebeveyn").id,
         isRecurring: false
     };
 
@@ -1743,22 +1779,27 @@ function renderWishlistAndGoals() {
     state.goals.forEach(g => {
         const member = state.profiles.find(p => p.id === g.memberId);
         
+        // Hedef sahibinin rolüne göre ilgili bakiyeyi belirle (Çocuk için kendi kumbarası, Ebeveyn için aile bütçesi)
+        const targetBalance = (member && member.role === "Çocuk") 
+            ? (member.balanceContribution || 0) 
+            : state.profiles.filter(p => p.role === "Ebeveyn").reduce((sum, p) => sum + (p.balanceContribution || 0), 0);
+
         // İlerleme yüzdesi hesaplama
         let progress = 0;
-        if (currentBalance >= g.cost) {
+        if (targetBalance >= g.cost) {
             progress = 100;
-        } else if (currentBalance > 0) {
-            progress = Math.round((currentBalance / g.cost) * 100);
+        } else if (targetBalance > 0) {
+            progress = Math.round((targetBalance / g.cost) * 100);
         }
 
         // Satın alma vadesi tahmini
         let forecastText = "";
-        if (currentBalance >= g.cost) {
+        if (targetBalance >= g.cost) {
             forecastText = "Satın Alınabilir! Bütçe yeterli.";
         } else if (monthlyNetSavings <= 0) {
             forecastText = "Birikim hızı yetersiz (Giderler geliri aşıyor).";
         } else {
-            const monthsNeeded = Math.ceil((g.cost - currentBalance) / monthlyNetSavings);
+            const monthsNeeded = Math.ceil((g.cost - targetBalance) / monthlyNetSavings);
             const targetDate = new Date();
             targetDate.setMonth(targetDate.getMonth() + monthsNeeded);
             forecastText = `Yaklaşık ${monthsNeeded} Ay Sonra (${targetDate.toLocaleString('tr-TR', { month: 'short', year: 'numeric' })})`;
@@ -1858,6 +1899,16 @@ function getFinancialHealthMetrics() {
     const financials = calculateFinancials();
     const balance = getFamilyBalance();
 
+    // Portföy değerini hesapla
+    const usdVal = (state.portfolio?.usd || 0) * (exchangeRates.usd || 0);
+    const eurVal = (state.portfolio?.eur || 0) * (exchangeRates.eur || 0);
+    const goldVal = (state.portfolio?.gold || 0) * (exchangeRates.gold || 0);
+    const btcVal = (state.portfolio?.btc || 0) * (exchangeRates.btc || 0);
+    const portfolioVal = usdVal + eurVal + goldVal + btcVal;
+    
+    // Toplam Likit Aile Serveti (Kasa + Portföy)
+    const totalLiquidWealth = balance + portfolioVal;
+
     // 1. Tasarruf Hızı Oranı (Gelirin ne kadarı birikime gidiyor?)
     let savingsRate = 0;
     if (financials.monthlyIncome > 0) {
@@ -1873,19 +1924,19 @@ function getFinancialHealthMetrics() {
     }
     const scoreDebt = Math.max(0, Math.min(100, Math.round(100 - (debtRatio * 100)))); // Borçsuz = 100 puan, Borç yıllık gelire eşitse = 0 puan
 
-    // 3. Acil Durum Fonu Tamponu (Kaç aylık sabit gider kadar nakit var?)
+    // 3. Acil Durum Fonu Tamponu (Kaç aylık sabit gider kadar likit varlık var?)
     let emergencyBuffer = 0;
     if (financials.monthlyExpense > 0) {
-        emergencyBuffer = balance / financials.monthlyExpense;
+        emergencyBuffer = totalLiquidWealth / financials.monthlyExpense;
     }
     const scoreEmergency = Math.max(0, Math.min(100, Math.round((emergencyBuffer / 3) * 100))); // 3 ay ve üzeri = 100 puan
 
-    // 4. Yatırım Alışkanlığı (Yatırım kategorisindeki gelir ve işlem yoğunluğu)
-    const investmentCount = state.transactions.filter(t => t.category === "Yatırım Geliri").length;
+    // 4. Yatırım Alışkanlığı (Yatırım kategorisindeki işlemler ve portföy hareketleri)
+    const investmentCount = state.transactions.filter(t => t.category === "Yatırım Geliri" || t.isTrade).length;
     const scoreInvestment = Math.min(100, 20 + (investmentCount * 25)); // her yatırım işlemi 25 puan, max 100
 
     // 5. Bütçe Sadakati (Aylık bakiye gelişiminin pozitif olması)
-    const scoreDiscipline = financials.monthlyIncome > financials.monthlyExpense ? 100 : 30;
+    const scoreDiscipline = financials.monthlyIncome >= financials.monthlyExpense ? 100 : 30;
 
     // Ortalama Finansal Sağlık Skoru
     const averageScore = Math.round((scoreSavings + scoreDebt + scoreEmergency + scoreInvestment + scoreDiscipline) / 5);
@@ -1958,12 +2009,12 @@ function approveTaskByParent(id) {
             type: "expense",
             category: "Eğitim", // harçlıkları eğitim/diğer altında toplayalım
             date: new Date().toISOString().split('T')[0],
-            memberId: state.profiles.find(p => p.role === "Ebeveyn").id,
+            memberId: state.activeProfileId || state.profiles.find(p => p.role === "Ebeveyn").id,
             isRecurring: false
         };
         
         // Aile ebeveyn bakiyesini düşür
-        const parent = state.profiles.find(p => p.role === "Ebeveyn");
+        const parent = state.profiles.find(p => p.id === state.activeProfileId) || state.profiles.find(p => p.role === "Ebeveyn");
         if (parent) parent.balanceContribution -= task.reward;
 
         state.transactions.unshift(expTrans);
@@ -2116,6 +2167,14 @@ function updateUI() {
     const savingsPanel = document.getElementById("savingsPanel");
     if (savingsPanel && savingsPanel.classList.contains("active")) {
         renderSavingsPage();
+    }
+
+    // Eğer şu an karar simülatörü sekmesindeysek, simülatör grafiklerini yenile
+    const sandboxPanel = document.getElementById("sandboxPanel");
+    if (sandboxPanel && sandboxPanel.classList.contains("active")) {
+        if (window.updateSandboxCharts) {
+            window.updateSandboxCharts();
+        }
     }
 }
 
@@ -2734,15 +2793,20 @@ function renderInvestments() {
     }
     
     // Değerleri HTML'e yaz
-    document.getElementById("portfolioUsd").innerText = `$${state.portfolio.usd.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    document.getElementById("portfolioEur").innerText = `€${state.portfolio.eur.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    document.getElementById("portfolioGold").innerText = `${state.portfolio.gold.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} gr`;
-    document.getElementById("portfolioBtc").innerText = `${state.portfolio.btc.toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 6 })} BTC`;
+    const pUsd = state.portfolio.usd || 0;
+    const pEur = state.portfolio.eur || 0;
+    const pGold = state.portfolio.gold || 0;
+    const pBtc = state.portfolio.btc || 0;
+
+    document.getElementById("portfolioUsd").innerText = `$${pUsd.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById("portfolioEur").innerText = `€${pEur.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById("portfolioGold").innerText = `${pGold.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} gr`;
+    document.getElementById("portfolioBtc").innerText = `${pBtc.toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 6 })} BTC`;
     
-    const usdTl = state.portfolio.usd * exchangeRates.usd;
-    const eurTl = state.portfolio.eur * exchangeRates.eur;
-    const goldTl = state.portfolio.gold * exchangeRates.gold;
-    const btcTl = state.portfolio.btc * exchangeRates.btc;
+    const usdTl = pUsd * exchangeRates.usd;
+    const eurTl = pEur * exchangeRates.eur;
+    const goldTl = pGold * exchangeRates.gold;
+    const btcTl = pBtc * exchangeRates.btc;
     
     document.getElementById("portfolioUsdTl").innerText = formatCurrency(usdTl);
     document.getElementById("portfolioEurTl").innerText = formatCurrency(eurTl);
@@ -2806,10 +2870,10 @@ function simulateMarketRates() {
     
     // Portföyün yeni değerini hesaplayıp tarihçeye kaydet
     const totalValue = 
-        (state.portfolio.usd * exchangeRates.usd) +
-        (state.portfolio.eur * exchangeRates.eur) +
-        (state.portfolio.gold * exchangeRates.gold) +
-        (state.portfolio.btc * exchangeRates.btc);
+        ((state.portfolio.usd || 0) * exchangeRates.usd) +
+        ((state.portfolio.eur || 0) * exchangeRates.eur) +
+        ((state.portfolio.gold || 0) * exchangeRates.gold) +
+        ((state.portfolio.btc || 0) * exchangeRates.btc);
         
     if (!state.portfolio.history) state.portfolio.history = [];
     state.portfolio.history.push(Math.round(totalValue));
@@ -2861,7 +2925,7 @@ function tradeAsset(e) {
             desc: `${asset.toUpperCase()} Alımı (${amount} Birim)`,
             amount: totalCost,
             type: "expense",
-            category: "Diğer",
+            category: "Yatırım Geliri",
             date: new Date().toISOString().split('T')[0],
             memberId: state.activeProfileId,
             isRecurring: false,
@@ -2894,7 +2958,7 @@ function tradeAsset(e) {
             desc: `${asset.toUpperCase()} Satışı (${amount} Birim)`,
             amount: totalCost,
             type: "income",
-            category: "Maaş",
+            category: "Yatırım Geliri",
             date: new Date().toISOString().split('T')[0],
             memberId: state.activeProfileId,
             isRecurring: false,
@@ -2915,7 +2979,7 @@ function tradeAsset(e) {
             desc: `${asset.toUpperCase()} Doğrudan Girişi (${amount} Birim)`,
             amount: totalCost,
             type: "direct_add",
-            category: "Diğer",
+            category: "Yatırım Geliri",
             date: new Date().toISOString().split('T')[0],
             memberId: state.activeProfileId,
             isRecurring: false,
@@ -2941,7 +3005,7 @@ function tradeAsset(e) {
             desc: `${asset.toUpperCase()} Doğrudan Çıkışı (${amount} Birim)`,
             amount: totalCost,
             type: "direct_remove",
-            category: "Diğer",
+            category: "Yatırım Geliri",
             date: new Date().toISOString().split('T')[0],
             memberId: state.activeProfileId,
             isRecurring: false,
@@ -2957,10 +3021,10 @@ function tradeAsset(e) {
     
     // Toplam portföy değerini güncelle ve geçmişe ekle
     const totalValue = 
-        (state.portfolio.usd * exchangeRates.usd) +
-        (state.portfolio.eur * exchangeRates.eur) +
-        (state.portfolio.gold * exchangeRates.gold) +
-        (state.portfolio.btc * exchangeRates.btc);
+        ((state.portfolio.usd || 0) * exchangeRates.usd) +
+        ((state.portfolio.eur || 0) * exchangeRates.eur) +
+        ((state.portfolio.gold || 0) * exchangeRates.gold) +
+        ((state.portfolio.btc || 0) * exchangeRates.btc);
     
     if (!state.portfolio.history) state.portfolio.history = [];
     state.portfolio.history.push(Math.round(totalValue));
@@ -3319,7 +3383,7 @@ function renderTradeHistory() {
         const assetLabel = assetLabels[t.asset] || t.asset.toUpperCase();
         
         row.innerHTML = `
-            <td>${t.date}</td>
+            <td>${formatDate(t.date)}</td>
             <td>${typeLabel}</td>
             <td><strong>${assetLabel}</strong></td>
             <td class="text-right">${t.assetAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</td>
