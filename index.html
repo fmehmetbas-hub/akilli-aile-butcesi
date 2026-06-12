@@ -207,6 +207,16 @@
                         <button class="btn btn-sm btn-primary" id="loadDemoDataBtn"><i class="fa-solid fa-cloud-arrow-down"></i> Demo Veri Yükle</button>
                     </div>
 
+                    <!-- Yapay Zeka Finansal Tavsiye ve Analiz Kartları -->
+                    <div class="ai-insights-wrapper" style="margin-bottom: 10px;">
+                        <h4 class="text-neon-cyan" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700;">
+                            <i class="fa-solid fa-lightbulb"></i> Yapay Zeka Finansal Öneriler
+                        </h4>
+                        <div class="ai-insights-grid" id="aiInsightsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                            <!-- Dinamik tavsiye kartları buraya yüklenecek -->
+                        </div>
+                    </div>
+
                     <!-- Stats Grid -->
                     <div class="stats-grid">
                         <div class="stat-card income">
@@ -261,7 +271,7 @@
                         </div>
                     </div>
 
-                    <!-- Bottom Grid (Recent Transactions & Goals) -->
+                    <!-- Bottom Grid (Recent Transactions & Goals & Leaderboard) -->
                     <div class="dashboard-bottom-grid">
                         <!-- Recent Transactions -->
                         <div class="glass-card flex-2">
@@ -283,8 +293,38 @@
                                 <button class="btn btn-sm btn-primary" id="openAddGoalModalBtn"><i class="fa-solid fa-plus"></i> Ekle</button>
                             </div>
                             <div class="card-body">
+                                <!-- İnteraktif Birikim Kavanozu (Animasyonlu) -->
+                                <div class="savings-jar-widget" id="savingsJarWidget" style="display: none; margin-bottom: 20px;">
+                                    <div class="jar-container">
+                                        <div class="jar-glow"></div>
+                                        <div class="jar-glass">
+                                            <div class="jar-water" id="jarWater">
+                                                <div class="water-wave wave-back"></div>
+                                                <div class="water-wave wave-front"></div>
+                                            </div>
+                                            <div class="coin-container" id="coinContainer"></div>
+                                            <span class="jar-percent" id="jarPercent">0%</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-center" style="margin-top: 8px;">
+                                        <small class="text-muted" style="font-size: 11px;">Aktif Hedef: <strong id="jarActiveGoalName" class="text-neon-cyan">-</strong></small>
+                                    </div>
+                                </div>
                                 <div class="goals-list" id="dashboardGoalsList">
                                     <!-- Dynamic Goal Items -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Aile Tasarruf Ligi -->
+                        <div class="glass-card flex-1 highlight">
+                            <div class="card-header">
+                                <h3>Aile Tasarruf Ligi</h3>
+                                <i class="fa-solid fa-trophy text-orange animate-pulse" style="font-size: 20px;"></i>
+                            </div>
+                            <div class="card-body">
+                                <div class="leaderboard-list" id="familyLeaderboardList">
+                                    <!-- Dinamik Liderlik Tablosu Üyeleri -->
                                 </div>
                             </div>
                         </div>
@@ -335,8 +375,9 @@
 
                         <!-- Right Side: Add Transaction Form -->
                         <div class="glass-card flex-1">
-                            <div class="card-header">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                                 <h3>Yeni İşlem Ekle</h3>
+                                <button class="btn btn-sm btn-outline parent-only" id="openManageLimitsBtn" type="button"><i class="fa-solid fa-sliders"></i> Limitler</button>
                             </div>
                             <div class="card-body">
                                 <form id="transactionForm" class="styled-form">
@@ -446,6 +487,22 @@
                                             <!-- Dynamic Debt Rows -->
                                         </tbody>
                                     </table>
+                                </div>
+                                <div class="separator" style="margin: 30px 0;"></div>
+                                
+                                <!-- Neon Payment Calendar -->
+                                <div class="payment-calendar-section">
+                                    <div class="card-header">
+                                        <h3>Aylık Neon Ödeme Takvimi</h3>
+                                        <span id="calendarCurrentMonth" class="text-neon-cyan font-weight-bold">Haziran 2026</span>
+                                    </div>
+                                    <p class="section-description">Tekrarlanan sabit fatura ve aboneliklerinizin günlere göre ödeme takvimi.</p>
+                                    <div class="calendar-grid-header">
+                                        <div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div>
+                                    </div>
+                                    <div class="calendar-grid" id="calendarDaysGrid">
+                                        <!-- Dinamik gün hücreleri -->
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -610,7 +667,19 @@
                                     <h3>Kişisel Kumbaram</h3>
                                 </div>
                                 <div class="card-body text-center">
-                                    <i class="fa-solid fa-piggy-bank piggy-icon"></i>
+                                     <!-- İnteraktif Birikim Kavanozu Çocuk İçin -->
+                                     <div class="savings-jar-widget" id="kidSavingsJarWidget" style="margin: 0 auto 20px auto;">
+                                         <div class="jar-container">
+                                             <div class="jar-glow"></div>
+                                             <div class="jar-glass">
+                                                 <div class="jar-water" id="kidJarWater">
+                                                     <div class="water-wave wave-back"></div>
+                                                     <div class="water-wave wave-front"></div>
+                                                 </div>
+                                                 <span class="jar-percent" id="kidJarPercent">0%</span>
+                                             </div>
+                                         </div>
+                                     </div>
                                     <h1 id="kidTotalBalance" class="text-neon-cyan">0,00 ₺</h1>
                                     <p class="text-muted">Görevleri tamamlayarak birikimini büyütebilirsin!</p>
                                 </div>
@@ -831,6 +900,25 @@
                         </select>
                     </div>
                     <button type="submit" class="btn btn-primary btn-block">Görevi Tanımla & Gönder</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: KATEGORİ LİMİTLERİ YÖNETİMİ -->
+    <div class="modal" id="manageLimitsModal">
+        <div class="modal-content glass-card max-width-sm">
+            <div class="modal-header">
+                <h3>Kategori Bütçe Limitleri</h3>
+                <span class="close-modal-btn" data-modal="manageLimitsModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p class="section-description">Aylık harcama limitlerini girerek bütçe aşımlarında uyarılar alın.</p>
+                <form id="categoryLimitsForm" class="styled-form">
+                    <div id="limitsFormFields" style="max-height: 320px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px;">
+                        <!-- Dinamik olarak kategori limit giriş alanları yüklenecek -->
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">Limitleri Kaydet</button>
                 </form>
             </div>
         </div>

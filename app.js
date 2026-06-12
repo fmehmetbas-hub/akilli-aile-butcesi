@@ -6,9 +6,9 @@
 // Demo verileri (Kullanıcı dilediğinde sistemi doldurabilmesi için)
 const DEMO_DATA_STATE = {
     profiles: [
-        { id: "p1", name: "Faruk", role: "Ebeveyn", avatar: "fa-user-tie", balanceContribution: 32000, pin: "1234" },
-        { id: "p2", name: "Ayşe", role: "Ebeveyn", avatar: "fa-user-nurse", balanceContribution: 18000, pin: "5678" },
-        { id: "p3", name: "Can", role: "Çocuk", avatar: "fa-user-astronaut", balanceContribution: 250, pin: "" }
+        { id: "p1", name: "Faruk", role: "Ebeveyn", avatar: "fa-user-tie", balanceContribution: 32000, pin: "1234", points: 350, badges: ["Bütçe Koruyucusu", "Kumbara Ortağı"] },
+        { id: "p2", name: "Ayşe", role: "Ebeveyn", avatar: "fa-user-nurse", balanceContribution: 18000, pin: "5678", points: 280, badges: ["Bütçe Koruyucusu"] },
+        { id: "p3", name: "Can", role: "Çocuk", avatar: "fa-user-astronaut", balanceContribution: 250, pin: "", points: 150, badges: ["Görev Canavarı"] }
     ],
     activeProfileId: "p1",
     transactions: [
@@ -39,7 +39,18 @@ const DEMO_DATA_STATE = {
         { id: "tk1", title: "Haftalık 2 Kitap Okumak", reward: 80, assignedTo: "p3", status: "completed" },
         { id: "tk2", title: "Odasını Düzenli Toplamak", reward: 50, assignedTo: "p3", status: "review" },
         { id: "tk3", title: "Akşam Sofra Kurumuna Yardım", reward: 30, assignedTo: "p3", status: "pending" }
-    ]
+    ],
+    categoryLimits: {
+        "Market": 8000,
+        "Fatura": 3000,
+        "Kira": 25000,
+        "Ulaşım": 4000,
+        "Abonelik": 1000,
+        "Eğitim": 5000,
+        "Sağlık": 3000,
+        "Giyim": 5000,
+        "Diğer": 2000
+    }
 };
 
 // Temiz Başlangıç Durumu
@@ -52,7 +63,18 @@ const DEFAULT_STATE = {
     goals: [],
     scenarios: [],
     tasks: [],
-    onboardingCompleted: false
+    onboardingCompleted: false,
+    categoryLimits: {
+        "Market": 8000,
+        "Fatura": 3000,
+        "Kira": 25000,
+        "Ulaşım": 4000,
+        "Abonelik": 1000,
+        "Eğitim": 5000,
+        "Sağlık": 3000,
+        "Giyim": 5000,
+        "Diğer": 2000
+    }
 };
 
 // Global Uygulama Durum Değişkenleri
@@ -385,6 +407,23 @@ function bindEvents() {
     if (loadDemoBtn) {
         loadDemoBtn.addEventListener("click", () => {
             loadDemoData();
+        });
+    }
+
+    // === KATEGORİ LİMİTLERİ YÖNETİMİ DINLEYICILERI ===
+    const openManageLimitsBtn = document.getElementById("openManageLimitsBtn");
+    if (openManageLimitsBtn) {
+        openManageLimitsBtn.addEventListener("click", () => {
+            renderManageLimitsForm();
+            openModal("manageLimitsModal");
+        });
+    }
+
+    const categoryLimitsForm = document.getElementById("categoryLimitsForm");
+    if (categoryLimitsForm) {
+        categoryLimitsForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            saveCategoryLimits();
         });
     }
 }
@@ -862,6 +901,25 @@ function saveTransaction() {
         isRecurring
     };
 
+    // Kategori limiti aşım kontrolü
+    if (type === "expense" && state.categoryLimits) {
+        const limit = state.categoryLimits[category] || 0;
+        if (limit > 0) {
+            const currentMonth = new Date(date).getMonth();
+            const currentYear = new Date(date).getFullYear();
+            
+            const totalSpent = state.transactions
+                .filter(t => t.type === "expense" && t.category === category && new Date(t.date).getMonth() === currentMonth && new Date(t.date).getFullYear() === currentYear)
+                .reduce((sum, t) => sum + t.amount, 0) + amount;
+                
+            if (totalSpent >= limit) {
+                alert(`⚠️ DİKKAT: "${category}" bütçe limiti aşıldı! Limit: ${formatCurrency(limit)}, Toplam harcama: ${formatCurrency(totalSpent)}`);
+            } else if (totalSpent >= limit * 0.8) {
+                alert(`⚠️ UYARI: "${category}" bütçesi sınırda! Toplam harcama bütçenin %80'ine ulaştı. (${formatCurrency(totalSpent)} / ${formatCurrency(limit)})`);
+            }
+        }
+    }
+
     // Aile bireyinin bakiye katkısını güncelle
     const member = state.profiles.find(p => p.id === memberId);
     if (member) {
@@ -873,6 +931,15 @@ function saveTransaction() {
     }
 
     state.transactions.unshift(newTrans);
+    
+    // Oyunlaştırma puanı ekle
+    awardPoints(memberId, type === "income" ? 10 : 5, type === "income" ? "Gelir Kaydetme" : "Gider Kaydetme");
+    
+    // Kumbara coin animasyonunu tetikle (Gelir ise)
+    if (type === "income") {
+        setTimeout(triggerCoinDrop, 100);
+    }
+    
     saveState();
 
     // Formu temizle
@@ -1456,6 +1523,11 @@ function saveGoal() {
     };
 
     state.goals.push(newGoal);
+    
+    // Oyunlaştırma puanı ekle
+    awardPoints(memberId, 15, "Hedef Belirleme");
+    setTimeout(triggerCoinDrop, 100);
+    
     saveState();
 
     document.getElementById("goalTitle").value = "";
@@ -1694,6 +1766,13 @@ function approveTaskByParent(id) {
         const child = state.profiles.find(p => p.id === task.assignedTo);
         if (child) {
             child.balanceContribution += task.reward;
+            
+            // Oyunlaştırma puanı ekle (Çocuğa görev puanı, Ebeveyne onay puanı)
+            awardPoints(child.id, 100, "Görev Tamamlama");
+            awardPoints(state.activeProfileId, 25, "Görev Onaylama");
+            
+            // Kumbara coin animasyonunu tetikle
+            setTimeout(triggerCoinDrop, 100);
         }
 
         // Aile bütçesinden "Çocuk Harçlığı" harcaması olarak düş
@@ -1846,6 +1925,12 @@ function updateUI() {
     renderWishlistAndGoals();
     renderKidZone();
 
+    // 5 Yeni Premium Özelliğin Arayüz Render'ları
+    renderLeaderboard();
+    generateAIInsights();
+    renderPaymentCalendar();
+    updateSavingsJar();
+
     // Grafikleri yeniden çiz
     renderDashboardCharts();
 }
@@ -1858,3 +1943,451 @@ window.deleteScenario = deleteScenario;
 window.toggleScenario = toggleScenario;
 window.completeTaskByKid = completeTaskByKid;
 window.approveTaskByParent = approveTaskByParent;
+window.removeSetupProfile = removeSetupProfile;
+
+// ==========================================================================
+// 5 PREMIUM ÖZELLİK YARDIMCI VE YÖNETİM METOTLARI
+// ==========================================================================
+
+// --- 1. Kategori Limitleri ---
+function renderManageLimitsForm() {
+    const fieldsContainer = document.getElementById("limitsFormFields");
+    if (!fieldsContainer) return;
+    
+    fieldsContainer.innerHTML = "";
+    
+    const categories = ["Market", "Fatura", "Kira", "Ulaşım", "Abonelik", "Eğitim", "Sağlık", "Giyim", "Diğer"];
+    
+    categories.forEach(cat => {
+        const currentLimit = state.categoryLimits ? (state.categoryLimits[cat] || 0) : 0;
+        
+        const group = document.createElement("div");
+        group.className = "form-group";
+        group.innerHTML = `
+            <label for="limit_${cat}" style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${cat} Aylık Limiti (₺)</label>
+            <input type="number" id="limit_${cat}" min="0" value="${currentLimit}" placeholder="Sınır yok" style="padding: 10px 14px;">
+        `;
+        fieldsContainer.appendChild(group);
+    });
+}
+
+function saveCategoryLimits() {
+    if (!state.categoryLimits) state.categoryLimits = {};
+    
+    const categories = ["Market", "Fatura", "Kira", "Ulaşım", "Abonelik", "Eğitim", "Sağlık", "Giyim", "Diğer"];
+    
+    categories.forEach(cat => {
+        const input = document.getElementById(`limit_${cat}`);
+        if (input) {
+            state.categoryLimits[cat] = parseFloat(input.value) || 0;
+        }
+    });
+    
+    saveState();
+    closeModal("manageLimitsModal");
+    updateUI();
+    
+    alert("Kategori limitleri başarıyla güncellendi!");
+}
+
+// --- 2. Tasarruf Ligi (Puan & Rozet) ---
+function awardPoints(profileId, amount, reason) {
+    const profile = state.profiles.find(p => p.id === profileId);
+    if (profile) {
+        if (profile.points === undefined) profile.points = 0;
+        profile.points += amount;
+        saveState();
+        checkAndUnlockBadges(profileId);
+    }
+}
+
+function checkAndUnlockBadges(profileId) {
+    const profile = state.profiles.find(p => p.id === profileId);
+    if (!profile) return;
+    if (!profile.badges) profile.badges = [];
+
+    // Rozet 1: Görev Canavarı (En az 3 görev tamamlama)
+    if (profile.role === "Çocuk") {
+        const completedTasksCount = state.tasks.filter(t => t.assignedTo === profileId && t.status === "completed").length;
+        if (completedTasksCount >= 3 && !profile.badges.includes("Görev Canavarı")) {
+            profile.badges.push("Görev Canavarı");
+            alert(`🎉 ${profile.name} "Görev Canavarı" rozetini kazandı!`);
+        }
+    }
+
+    // Rozet 2: Bütçe Koruyucusu (Harcamaları limitin %80'inin altında tutma)
+    if (profile.role === "Ebeveyn") {
+        const spentCategories = [...new Set(state.transactions.filter(t => t.type === "expense" && t.memberId === profileId).map(t => t.category))];
+        let withinLimit = true;
+        
+        if (spentCategories.length > 0) {
+            spentCategories.forEach(cat => {
+                const totalSpent = state.transactions
+                    .filter(t => t.type === "expense" && t.category === cat && t.memberId === profileId)
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const limit = state.categoryLimits ? (state.categoryLimits[cat] || 0) : 0;
+                if (limit > 0 && totalSpent > limit * 0.8) {
+                    withinLimit = false;
+                }
+            });
+            
+            if (withinLimit && !profile.badges.includes("Bütçe Koruyucusu")) {
+                profile.badges.push("Bütçe Koruyucusu");
+                alert(`🎉 ${profile.name} "Bütçe Koruyucusu" rozetini kazandı!`);
+            }
+        }
+    }
+
+    // Rozet 3: Birikim Ustası / Kumbara Ortağı
+    const currentBalance = getFamilyBalance();
+    if (profile.role === "Çocuk" && profile.balanceContribution >= 500 && !profile.badges.includes("Birikim Ustası")) {
+        profile.badges.push("Birikim Ustası");
+        alert(`🎉 ${profile.name} "Birikim Ustası" rozetini kazandı!`);
+    } else if (profile.role === "Ebeveyn" && currentBalance >= 20000 && !profile.badges.includes("Kumbara Ortağı")) {
+        profile.badges.push("Kumbara Ortağı");
+        alert(`🎉 ${profile.name} "Kumbara Ortağı" rozetini kazandı!`);
+    }
+
+    saveState();
+}
+
+function renderLeaderboard() {
+    const container = document.getElementById("familyLeaderboardList");
+    if (!container) return;
+    
+    container.innerHTML = "";
+    
+    const sorted = [...state.profiles].map(p => ({
+        ...p,
+        points: p.points || 0,
+        badges: p.badges || []
+    })).sort((a, b) => b.points - a.points);
+    
+    if (sorted.length === 0) {
+        container.innerHTML = `<p class="text-muted text-center py-2" style="font-size: 13px;">Henüz üye eklenmemiş.</p>`;
+        return;
+    }
+    
+    sorted.forEach((p, idx) => {
+        const item = document.createElement("div");
+        item.className = `leaderboard-item ${idx === 0 ? 'rank-1' : ''}`;
+        
+        const badgeHTML = p.badges.map(b => `<span class="mini-badge-icon"><i class="fa-solid fa-medal"></i> ${b}</span>`).join("");
+        
+        item.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="leaderboard-rank">#${idx + 1}</span>
+                <div class="active-profile-avatar" style="width: 32px; height: 32px; font-size: 13px; margin-right: 4px;">
+                    <i class="fa-solid ${p.avatar}"></i>
+                </div>
+                <div>
+                    <h5 style="margin: 0; font-size: 13px; font-weight: 600;">${p.name} <small class="text-muted">(${p.role})</small></h5>
+                    <div class="leaderboard-badges-inline">
+                        ${badgeHTML || '<span class="text-muted" style="font-size: 9px;">Rozet yok</span>'}
+                    </div>
+                </div>
+            </div>
+            <span class="leaderboard-points">${p.points} Puan</span>
+        `;
+        container.appendChild(item);
+    });
+}
+
+// --- 3. İnteraktif Neon Kumbara (Savings Jar) ---
+function updateSavingsJar() {
+    const jarWidget = document.getElementById("savingsJarWidget");
+    const jarWater = document.getElementById("jarWater");
+    const jarPercent = document.getElementById("jarPercent");
+    const jarGoalName = document.getElementById("jarActiveGoalName");
+    
+    const kidJarWidget = document.getElementById("kidSavingsJarWidget");
+    const kidJarWater = document.getElementById("kidJarWater");
+    const kidJarPercent = document.getElementById("kidJarPercent");
+    
+    const currentBalance = getFamilyBalance();
+    
+    if (state.goals && state.goals.length > 0) {
+        if (jarWidget) jarWidget.style.display = "flex";
+        
+        const shortestGoal = state.goals[0];
+        if (jarGoalName) jarGoalName.innerText = shortestGoal.title;
+        
+        let percent = 0;
+        if (currentBalance >= shortestGoal.cost) {
+            percent = 100;
+        } else if (currentBalance > 0) {
+            percent = Math.round((currentBalance / shortestGoal.cost) * 100);
+        }
+        
+        if (jarPercent) jarPercent.innerText = `${percent}%`;
+        if (jarWater) jarWater.style.height = `${percent}%`;
+    } else {
+        if (jarWidget) jarWidget.style.display = "none";
+    }
+    
+    const activeProfile = getActiveProfile();
+    if (activeProfile && activeProfile.role === "Çocuk") {
+        if (kidJarWidget) kidJarWidget.style.display = "flex";
+        
+        const childGoals = state.goals.filter(g => g.memberId === activeProfile.id);
+        let percent = 0;
+        
+        if (childGoals.length > 0) {
+            const targetGoal = childGoals[0];
+            const childBalance = activeProfile.balanceContribution;
+            
+            if (childBalance >= targetGoal.cost) {
+                percent = 100;
+            } else if (childBalance > 0) {
+                percent = Math.round((childBalance / targetGoal.cost) * 100);
+            }
+        } else {
+            const targetBalance = 5000;
+            const childBalance = activeProfile.balanceContribution;
+            percent = Math.min(100, Math.round((childBalance / targetBalance) * 100));
+        }
+        
+        if (kidJarPercent) kidJarPercent.innerText = `${percent}%`;
+        if (kidJarWater) kidJarWater.style.height = `${percent}%`;
+    } else {
+        if (kidJarWidget) kidJarWidget.style.display = "none";
+    }
+}
+
+function triggerCoinDrop() {
+    const coinContainer = document.getElementById("coinContainer");
+    if (!coinContainer) return;
+    
+    const jarWidget = document.getElementById("savingsJarWidget");
+    if (!jarWidget || jarWidget.style.display === "none") return;
+    
+    const coin = document.createElement("div");
+    coin.className = "dropping-coin";
+    
+    const randomOffset = Math.floor(Math.random() * 20) - 10;
+    coin.style.left = `calc(50% + ${randomOffset}px)`;
+    
+    coinContainer.appendChild(coin);
+    
+    setTimeout(() => {
+        coin.remove();
+    }, 800);
+}
+
+// --- 4. Yapay Zeka Finansal Tavsiyeler (AI Insights) ---
+function generateAIInsights() {
+    const container = document.getElementById("aiInsightsContainer");
+    if (!container) return;
+    
+    container.innerHTML = "";
+    
+    const activeProfile = getActiveProfile();
+    const wrapper = document.querySelector(".ai-insights-wrapper");
+    
+    if (!activeProfile || activeProfile.role !== "Ebeveyn") {
+        if (wrapper) wrapper.style.display = "none";
+        return;
+    }
+    
+    if (wrapper) wrapper.style.display = "block";
+    
+    const financials = calculateFinancials();
+    const balance = getFamilyBalance();
+    const insights = [];
+    
+    // Kategori limitleri kontrolü
+    const spentCategories = {};
+    state.transactions.filter(t => t.type === "expense").forEach(t => {
+        spentCategories[t.category] = (spentCategories[t.category] || 0) + t.amount;
+    });
+    
+    Object.keys(spentCategories).forEach(cat => {
+        const spent = spentCategories[cat];
+        const limit = state.categoryLimits ? (state.categoryLimits[cat] || 0) : 0;
+        if (limit > 0 && spent >= limit) {
+            insights.push({
+                title: `${cat} Bütçesi Aşıldı!`,
+                text: `Bu ay ${cat} için belirlediğiniz ${formatCurrency(limit)} bütçeyi aştınız (Harcama: ${formatCurrency(spent)}). Bu alandaki harcamaları acilen kısmanız gerekmektedir.`,
+                icon: "fa-triangle-exclamation"
+            });
+        } else if (limit > 0 && spent >= limit * 0.8) {
+            insights.push({
+                title: `${cat} Bütçesi Sınırda!`,
+                text: `Bu ay ${cat} bütçenizin %80'ine ulaştınız. Harcama: ${formatCurrency(spent)} / Limit: ${formatCurrency(limit)}. Ekstra alışverişleri erteleyin.`,
+                icon: "fa-circle-exclamation"
+            });
+        }
+    });
+    
+    // Tasarruf analiz uyarısı
+    const monthlyNet = financials.monthlyIncome - financials.monthlyExpense;
+    if (financials.monthlyIncome > 0) {
+        const savingsRate = (monthlyNet / financials.monthlyIncome) * 100;
+        if (savingsRate <= 0) {
+            insights.push({
+                title: "Birikim Uyarısı!",
+                text: "Bu ay harcamalarınız gelirlerinizi aştı. Gelecek bütçelerinizde acil durum fonu oluşturmak için aylık en az %10 tasarruf etmeye çalışın.",
+                icon: "fa-scale-unbalanced"
+            });
+        } else if (savingsRate < 20) {
+            insights.push({
+                title: "Tasarruf Hızlandırılabilir",
+                text: `Mevcut tasarruf oranınız %${Math.round(savingsRate)}. Bunu %20 ve üzerine çıkarmak, birikim hedeflerinize ulaşmanızı önemli ölçüde hızlandıracaktır.`,
+                icon: "fa-gauge"
+            });
+        } else {
+            insights.push({
+                title: "Harika Tasarruf Oranı!",
+                text: `Gelirinizin %${Math.round(savingsRate)} kadarını biriktiriyorsunuz. Finansal sağlık durumunuz oldukça iyi gidiyor! Tebrikler.`,
+                icon: "fa-square-check"
+            });
+        }
+    }
+    
+    // Abonelik analizleri
+    const subscriptionSpent = state.transactions
+        .filter(t => t.category === "Abonelik" && t.type === "expense")
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+    const activeGoals = state.goals;
+    if (activeGoals.length > 0 && subscriptionSpent > 150 && monthlyNet > 0) {
+        const shortestGoal = activeGoals[0];
+        const optimizedSavings = monthlyNet + (subscriptionSpent * 0.5);
+        const normalMonths = Math.ceil(shortestGoal.cost / monthlyNet);
+        const optimizedMonths = Math.ceil(shortestGoal.cost / optimizedSavings);
+        const diff = normalMonths - optimizedMonths;
+        
+        if (diff > 0) {
+            insights.push({
+                title: `Abonelikleri Kısarak Hızlı Hedef`,
+                text: `Abonelik harcamalarınızın (${formatCurrency(subscriptionSpent)}) yarısından tasarruf etmek, "${shortestGoal.title}" hedefinize ${diff} ay daha erken ulaşmanızı sağlayabilir.`,
+                icon: "fa-bolt"
+            });
+        }
+    }
+    
+    if (insights.length === 0) {
+        insights.push({
+            title: "Bütçe Hazırlığı",
+            text: "Uygulamaya gelir ve giderlerinizi ekledikçe size özel yapay zeka finansal tavsiyeleri burada anlık listelenecektir.",
+            icon: "fa-circle-info"
+        });
+        insights.push({
+            title: "Acil Durum Fonu",
+            text: "Beklenmedik masraflara karşı ortak bakiyenizde en az 3 aylık sabit gideriniz kadar acil durum birikimi tutmanızı öneririz.",
+            icon: "fa-shield-heart"
+        });
+        insights.push({
+            title: "Önce Kendine Öde",
+            text: "Maaşınız yattığı anda harcamaya başlamadan önce %10'luk kısmını birikim hedeflerinize veya kumbaranıza aktarın.",
+            icon: "fa-piggy-bank"
+        });
+    }
+    
+    insights.slice(0, 3).forEach(ins => {
+        const card = document.createElement("div");
+        card.className = "ai-insight-card";
+        card.innerHTML = `
+            <i class="fa-solid ${ins.icon} ai-insight-icon"></i>
+            <div class="ai-insight-content">
+                <h5>${ins.title}</h5>
+                <p>${ins.text}</p>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// --- 5. Fatura & Abonelik Ödeme Takvimi ---
+function renderPaymentCalendar() {
+    const grid = document.getElementById("calendarDaysGrid");
+    const label = document.getElementById("calendarCurrentMonth");
+    if (!grid) return;
+    
+    grid.innerHTML = "";
+    
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    if (label) {
+        label.innerText = now.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
+    }
+    
+    const firstDay = new Date(year, month, 1);
+    let startDayOfWeek = firstDay.getDay();
+    startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+    
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    for (let i = 0; i < startDayOfWeek; i++) {
+        const empty = document.createElement("div");
+        empty.className = "calendar-day empty";
+        grid.appendChild(empty);
+    }
+    
+    const recurringExpenses = state.transactions.filter(t => t.isRecurring && t.type === "expense");
+    const recurringIncomes = state.transactions.filter(t => t.isRecurring && t.type === "income");
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+        const cell = document.createElement("div");
+        cell.className = "calendar-day";
+        
+        if (day === now.getDate()) {
+            cell.classList.add("today");
+        }
+        
+        cell.innerHTML = `<span class="calendar-day-num">${day}</span>`;
+        
+        const dayExpenses = recurringExpenses.filter(t => {
+            const tDay = new Date(t.date).getDate();
+            return tDay === day;
+        });
+        
+        const dayIncomes = recurringIncomes.filter(t => {
+            const tDay = new Date(t.date).getDate();
+            return tDay === day;
+        });
+        
+        if (dayExpenses.length > 0 || dayIncomes.length > 0) {
+            cell.classList.add("has-event");
+            
+            const dotsContainer = document.createElement("div");
+            dotsContainer.className = "calendar-event-dots";
+            
+            let tooltipHTML = `<div class="day-tooltip">`;
+            
+            dayIncomes.forEach(inc => {
+                const dot = document.createElement("div");
+                dot.className = "calendar-dot income";
+                dotsContainer.appendChild(dot);
+                
+                tooltipHTML += `
+                    <div class="tooltip-item">
+                        <span class="text-green" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px;">${inc.desc}</span>
+                        <strong>+${formatCurrency(inc.amount)}</strong>
+                    </div>
+                `;
+            });
+            
+            dayExpenses.forEach(exp => {
+                const dot = document.createElement("div");
+                dot.className = "calendar-dot";
+                dotsContainer.appendChild(dot);
+                
+                tooltipHTML += `
+                    <div class="tooltip-item">
+                        <span class="text-red" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px;">${exp.desc}</span>
+                        <strong>-${formatCurrency(exp.amount)}</strong>
+                    </div>
+                `;
+            });
+            
+            tooltipHTML += `</div>`;
+            cell.appendChild(dotsContainer);
+            cell.innerHTML += tooltipHTML;
+        }
+        
+        grid.appendChild(cell);
+    }
+}
