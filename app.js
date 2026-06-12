@@ -59,7 +59,15 @@ const DEMO_DATA_STATE = {
         history: [82000, 85000, 89000, 87500, 93000, 94600]
     },
     trackedAssets: { usd: true, eur: true, gold: true, btc: true },
-    shoppingCart: []
+    shoppingCart: [],
+    savingsHistory: [
+        { month: "Oca 2026", safe: 25000, portfolio: 12000, kids: 200, total: 37200, netChange: 5000 },
+        { month: "Şub 2026", safe: 28000, portfolio: 14000, kids: 220, total: 42220, netChange: 5020 },
+        { month: "Mar 2026", safe: 32000, portfolio: 13500, kids: 240, total: 45740, netChange: 3520 },
+        { month: "Nis 2026", safe: 38000, portfolio: 17000, kids: 210, total: 55210, netChange: 9470 },
+        { month: "May 2026", safe: 36000, portfolio: 15500, kids: 230, total: 51730, netChange: -3480 },
+        { month: "Haz 2026", safe: 50000, portfolio: 48600, kids: 250, total: 98850, netChange: 47120 }
+    ]
 };
 
 // Temiz Başlangıç Durumu
@@ -92,7 +100,8 @@ const DEFAULT_STATE = {
         history: []
     },
     trackedAssets: { usd: true, eur: true, gold: true, btc: true },
-    shoppingCart: []
+    shoppingCart: [],
+    savingsHistory: []
 };
 
 // Global Uygulama Durum Değişkenleri
@@ -134,6 +143,9 @@ function initApp() {
             }
             if (!state.trackedAssets) {
                 state.trackedAssets = { usd: true, eur: true, gold: true, btc: true };
+            }
+            if (!state.savingsHistory) {
+                state.savingsHistory = [];
             }
         } catch (e) {
             console.error("State parse hatası, varsayılan yükleniyor...", e);
@@ -763,6 +775,7 @@ function switchTab(tabName) {
         debts: { title: "Borç & Taksit Takibi", subtitle: "Borçlarınızı akıllı ödeme stratejileriyle yönetin." },
         sandbox: { title: "Karar Simülatörü", subtitle: "Finansal kararlar almadan önce gelecek bütçenizi simüle edin." },
         investments: { title: "Yatırım & Varlık Portföyü", subtitle: "Altın, Döviz ve sanal varlıklarınızı anlık simülasyonlarla takip edin." },
+        savings: { title: "Toplam Birikim Analizi", subtitle: "Tüm aile birikimlerinizi ve aylık gelişim trendini takip edin." },
         kidzone: { title: "Çocuk Dünyası", subtitle: "Görevlerinizi tamamlayarak harçlık biriktirin ve bütçenizi yönetin." }
     };
 
@@ -786,6 +799,8 @@ function switchTab(tabName) {
         }).catch(err => {
             console.error("Gerçek zamanlı kurlar alınamadı:", err);
         });
+    } else if (tabName === "savings") {
+        renderSavingsPage();
     }
 }
 
@@ -2090,9 +2105,18 @@ function updateUI() {
     generateAIInsights();
     renderPaymentCalendar();
     updateSavingsJar();
+    
+    // Birikim geçmişi verilerini güncelle
+    updateSavingsHistoryRecord();
 
     // Grafikleri yeniden çiz
     renderDashboardCharts();
+    
+    // Eğer şu an birikim sekmesindeysek, birikim sayfasını yenile
+    const savingsPanel = document.getElementById("savingsPanel");
+    if (savingsPanel && savingsPanel.classList.contains("active")) {
+        renderSavingsPage();
+    }
 }
 
 // Global olarak çağrılabilmesi için buton onclick handler'larını pencereye bağlayalım
@@ -3366,3 +3390,129 @@ function addPresetScenario(type) {
 window.fetchRealTimeRates = fetchRealTimeRates;
 window.renderTradeHistory = renderTradeHistory;
 window.addPresetScenario = addPresetScenario;
+
+// --- 6. Toplam Birikim Analiz Sayfası ve Hesaplama Metotları ---
+function updateSavingsHistoryRecord() {
+    if (!state.savingsHistory) state.savingsHistory = [];
+    
+    const currentMonthLabel = new Date().toLocaleString('tr-TR', { month: 'short', year: 'numeric' });
+    
+    // Mevcut değerleri hesapla
+    const safeBalance = getFamilyBalance();
+    
+    const usdVal = (state.portfolio?.usd || 0) * exchangeRates.usd;
+    const eurVal = (state.portfolio?.eur || 0) * exchangeRates.eur;
+    const goldVal = (state.portfolio?.gold || 0) * exchangeRates.gold;
+    const btcVal = (state.portfolio?.btc || 0) * exchangeRates.btc;
+    const portfolioVal = usdVal + eurVal + goldVal + btcVal;
+    
+    const kidsBalance = state.profiles
+        .filter(p => p.role === "Çocuk")
+        .reduce((sum, c) => sum + (c.balanceContribution || 0), 0);
+        
+    const total = safeBalance + portfolioVal + kidsBalance;
+    
+    // Mevcut ayın kaydını bul veya oluştur
+    let record = state.savingsHistory.find(r => r.month === currentMonthLabel);
+    if (!record) {
+        // Yeni ay kaydı ekle
+        const lastTotal = state.savingsHistory.length > 0 ? state.savingsHistory[state.savingsHistory.length - 1].total : total;
+        const netChange = total - lastTotal;
+        
+        record = {
+            month: currentMonthLabel,
+            safe: safeBalance,
+            portfolio: portfolioVal,
+            kids: kidsBalance,
+            total: total,
+            netChange: netChange
+        };
+        state.savingsHistory.push(record);
+    } else {
+        // Mevcut kaydı güncelle
+        record.safe = safeBalance;
+        record.portfolio = portfolioVal;
+        record.kids = kidsBalance;
+        record.total = total;
+        
+        const idx = state.savingsHistory.indexOf(record);
+        const prevTotal = idx > 0 ? state.savingsHistory[idx - 1].total : (state.savingsHistory[idx].total - record.netChange);
+        record.netChange = total - prevTotal;
+    }
+    
+    // Max 12 ay verisi tutalım
+    if (state.savingsHistory.length > 12) {
+        state.savingsHistory.shift();
+    }
+    
+    saveState();
+}
+
+function renderSavingsPage() {
+    if (!state.savingsHistory) state.savingsHistory = [];
+    
+    // Güncel değerleri hesapla
+    const safeBalance = getFamilyBalance();
+    
+    const usdVal = (state.portfolio?.usd || 0) * exchangeRates.usd;
+    const eurVal = (state.portfolio?.eur || 0) * exchangeRates.eur;
+    const goldVal = (state.portfolio?.gold || 0) * exchangeRates.gold;
+    const btcVal = (state.portfolio?.btc || 0) * exchangeRates.btc;
+    const portfolioVal = usdVal + eurVal + goldVal + btcVal;
+    
+    const children = state.profiles.filter(p => p.role === "Çocuk");
+    const kidsBalance = children.reduce((sum, c) => sum + (c.balanceContribution || 0), 0);
+    
+    const totalAccumulated = safeBalance + portfolioVal + kidsBalance;
+    
+    // DOM Kartlarını güncelle
+    const totalAccEl = document.getElementById("savingsTotalAccumulated");
+    const safeEl = document.getElementById("savingsSafeCash");
+    const portEl = document.getElementById("savingsPortfolioVal");
+    const kidsEl = document.getElementById("savingsKidsCash");
+    
+    if (totalAccEl) totalAccEl.innerText = formatCurrency(totalAccumulated);
+    if (safeEl) safeEl.innerText = formatCurrency(safeBalance);
+    if (portEl) portEl.innerText = formatCurrency(portfolioVal);
+    if (kidsEl) kidsEl.innerText = formatCurrency(kidsBalance);
+    
+    // Detay Tablosunu Güncelle
+    const list = document.getElementById("savingsDetailsList");
+    if (list) {
+        list.innerHTML = "";
+        
+        const items = [
+            { name: "Ortak Kasa Nakit (TL)", qty: "Nakit", val: safeBalance },
+            { name: "Dolar Varlıkları ($)", qty: `$${(state.portfolio?.usd || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`, val: usdVal },
+            { name: "Euro Varlıkları (€)", qty: `€${(state.portfolio?.eur || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`, val: eurVal },
+            { name: "Altın Birikimi (gr)", qty: `${(state.portfolio?.gold || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} gr`, val: goldVal },
+            { name: "Bitcoin Birikimi (BTC)", qty: `${(state.portfolio?.btc || 0).toLocaleString('tr-TR', { minimumFractionDigits: 6 })} BTC`, val: btcVal }
+        ];
+        
+        children.forEach(c => {
+            items.push({
+                name: `${c.name} Kumbarası`,
+                qty: "Birikim",
+                val: c.balanceContribution || 0
+            });
+        });
+        
+        items.forEach(item => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td><strong>${item.name}</strong></td>
+                <td class="text-right text-muted" style="font-size: 10px;">${item.qty}</td>
+                <td class="text-right text-neon-cyan" style="font-weight: bold;">${formatCurrency(item.val)}</td>
+            `;
+            list.appendChild(row);
+        });
+    }
+    
+    // Grafik çizimini tetikle
+    if (window.renderSavingsHistoryChart) {
+        window.renderSavingsHistoryChart();
+    }
+}
+
+window.renderSavingsPage = renderSavingsPage;
+window.updateSavingsHistoryRecord = updateSavingsHistoryRecord;

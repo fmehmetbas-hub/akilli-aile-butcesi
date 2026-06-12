@@ -164,6 +164,10 @@
                         <i class="fa-solid fa-arrow-trend-up"></i>
                         <span>Yatırımlar</span>
                     </li>
+                    <li class="nav-item" data-tab="savings" id="navSavings">
+                        <i class="fa-solid fa-piggy-bank"></i>
+                        <span>Toplam Birikim</span>
+                    </li>
                     <li class="nav-item" data-tab="kidzone" id="navKidZone">
                         <i class="fa-solid fa-gamepad"></i>
                         <span>Çocuk Dünyası</span>
@@ -920,6 +924,85 @@
                                     </div>
                                     <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">İşlemi Tamamla</button>
                                 </form>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 7. TOTAL SAVINGS PANEL -->
+                <section class="tab-panel" id="savingsPanel">
+                    <div class="panel-layout">
+                        <!-- Top Cards Grid -->
+                        <div class="dashboard-stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; width: 100%;">
+                            <div class="stat-card glass-card shadow-cyan" style="padding: 16px 20px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 11px; color: var(--text-secondary);">Toplam Birikim</span>
+                                    <i class="fa-solid fa-vault text-neon-cyan" style="font-size: 16px;"></i>
+                                </div>
+                                <h2 id="savingsTotalAccumulated" style="margin: 8px 0 4px 0; font-size: 24px;">0,00 ₺</h2>
+                                <small class="text-muted" style="font-size: 10px;">Kasa, yatırımlar ve çocuk kumbaraları toplamı</small>
+                            </div>
+                            <div class="stat-card glass-card shadow-purple" style="padding: 16px 20px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 11px; color: var(--text-secondary);">Ortak Kasa Nakit</span>
+                                    <i class="fa-solid fa-money-bill-1-wave text-neon-purple" style="font-size: 16px;"></i>
+                                </div>
+                                <h2 id="savingsSafeCash" style="margin: 8px 0 4px 0; font-size: 24px;">0,00 ₺</h2>
+                                <small class="text-muted" style="font-size: 10px;">Ortak kasada hazır bulunan nakit para</small>
+                            </div>
+                            <div class="stat-card glass-card shadow-orange" style="padding: 16px 20px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 11px; color: var(--text-secondary);">Yatırım Portföyü</span>
+                                    <i class="fa-solid fa-arrow-trend-up text-neon-orange" style="font-size: 16px;"></i>
+                                </div>
+                                <h2 id="savingsPortfolioVal" style="margin: 8px 0 4px 0; font-size: 24px;">0,00 ₺</h2>
+                                <small class="text-muted" style="font-size: 10px;">Döviz, altın ve kripto varlıkların TL değeri</small>
+                            </div>
+                            <div class="stat-card glass-card shadow-cyan" style="padding: 16px 20px; border-color: rgba(244, 63, 94, 0.15) !important;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 11px; color: var(--text-secondary);">Çocuk Kumbaraları</span>
+                                    <i class="fa-solid fa-wallet" style="font-size: 16px; color: #f43f5e;"></i>
+                                </div>
+                                <h2 id="savingsKidsCash" style="margin: 8px 0 4px 0; font-size: 24px; color: #f43f5e;">0,00 ₺</h2>
+                                <small class="text-muted" style="font-size: 10px;">Çocukların bireysel kumbara birikimleri toplamı</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Main Content Rows -->
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap; width: 100%;">
+                            <!-- Chart: Monthly Savings & Gain/Loss -->
+                            <div class="glass-card flex-2" style="padding: 20px; min-width: 350px;">
+                                <div class="card-header">
+                                    <h3>Aylık Birikim & Kâr-Zarar Gelişimi</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div style="height: 320px; position: relative;">
+                                        <canvas id="savingsHistoryChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Table: Savings Items Breakdowns -->
+                            <div class="glass-card flex-1" style="padding: 20px; min-width: 280px;">
+                                <div class="card-header">
+                                    <h3>Birikim Kalemleri Detayları</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div style="max-height: 320px; overflow-y: auto;">
+                                        <table class="data-table" style="font-size: 11px;">
+                                            <thead>
+                                                <tr>
+                                                    <th>Birikim Türü / Varlık</th>
+                                                    <th class="text-right">Miktar</th>
+                                                    <th class="text-right">TL Değeri</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="savingsDetailsList">
+                                                <!-- Dynamic Details Rows -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
