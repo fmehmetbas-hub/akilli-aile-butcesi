@@ -15,6 +15,9 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="dark-theme">
+    <!-- NEON TOAST BİLDİRİM MERKEZİ -->
+    <div id="toastContainer" class="toast-container"></div>
+
     <!-- HOŞ GELDİNİZ, KAYIT & GİRİŞ VE PROFİL KURULUM OVERLAY -->
     <div class="welcome-overlay" id="welcomeOverlay" style="display: none;">
         <!-- 1. Kayıt / Giriş Ekranı -->
@@ -156,6 +159,10 @@
                     <li class="nav-item" data-tab="sandbox">
                         <i class="fa-solid fa-sliders"></i>
                         <span>Karar Simülatörü</span>
+                    </li>
+                    <li class="nav-item parent-only" data-tab="investments" id="navInvestments">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                        <span>Yatırımlar</span>
                     </li>
                     <li class="nav-item" data-tab="kidzone" id="navKidZone">
                         <i class="fa-solid fa-gamepad"></i>
@@ -626,6 +633,54 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Akıllı Alışveriş Sepeti -->
+                            <div class="glass-card margin-top">
+                                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h3>Akıllı Alışveriş Sepeti (Sanal Karar Sepeti)</h3>
+                                    <button class="btn btn-sm btn-outline text-red" id="clearCartBtn" type="button"><i class="fa-solid fa-trash-can"></i> Temizle</button>
+                                </div>
+                                <div class="card-body">
+                                    <p class="section-description">Sepete ürün ekleyerek bu harcamanın aktif hedeflerinizi kaç gün/ay geciktireceğini simüle edin.</p>
+                                    
+                                    <form id="cartAddForm" class="row-flex" style="margin-bottom: 15px; display: flex; gap: 8px;">
+                                        <input type="text" id="cartItemName" required placeholder="Ürün adı (Örn: Televizyon, Telefon)" style="flex: 2; padding: 8px 12px; font-size: 12px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); color: white; border-radius: var(--border-radius-sm);">
+                                        <input type="number" id="cartItemPrice" required placeholder="Fiyat (₺)" style="flex: 1; padding: 8px 12px; font-size: 12px; min: 1; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); color: white; border-radius: var(--border-radius-sm);">
+                                        <button type="submit" class="btn btn-primary" style="padding: 8px 16px; font-size: 12px;"><i class="fa-solid fa-plus"></i></button>
+                                    </form>
+
+                                    <!-- Delay Warning Neon Card -->
+                                    <div class="delay-warning-box" id="cartDelayWarning" style="display: none; padding: 12px; background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); border-radius: var(--border-radius-md); margin-bottom: 15px; font-size: 11px; line-height: 1.4;">
+                                        <!-- Dynamic Delay message -->
+                                    </div>
+
+                                    <!-- Cart Items List -->
+                                    <div class="cart-items-container" style="max-height: 150px; overflow-y: auto; margin-bottom: 12px;">
+                                        <table class="styled-table" style="font-size: 11px;">
+                                            <thead>
+                                                <tr>
+                                                    <th>Ürün</th>
+                                                    <th class="text-right">Fiyat</th>
+                                                    <th style="width: 40px;"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="cartItemsList">
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted">Sepetiniz boş.</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-color);">
+                                        <div>
+                                            <span style="font-size: 11px; color: var(--text-secondary);">Sepet Toplamı:</span>
+                                            <h4 id="cartTotalSum" style="margin: 0; font-size: 16px; color: var(--color-cyan);">0,00 ₺</h4>
+                                        </div>
+                                        <button class="btn btn-primary btn-sm" id="buyCartBtn" type="button" disabled><i class="fa-solid fa-bag-shopping"></i> Sepeti Satın Al (Bütçeye İşle)</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -693,6 +748,104 @@
                                 <div class="card-body" id="kidGoalsContainer">
                                     <!-- Dynamic list of child specific goals -->
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 6. INVESTMENTS PANEL -->
+                <section class="tab-panel parent-only" id="investmentsPanel">
+                    <div class="panel-layout">
+                        <!-- Left Side: Portfolio Cards & Chart -->
+                        <div class="glass-card flex-2">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3>Yatırım & Varlık Portföyü</h3>
+                                <button class="btn btn-sm btn-outline" id="simulateRatesBtn" type="button"><i class="fa-solid fa-arrows-spin"></i> Kurları Simüle Et</button>
+                            </div>
+                            <div class="card-body">
+                                <!-- Exchange Rates & Portfolio Balances Grid -->
+                                <div class="dashboard-stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 20px; gap: 12px;">
+                                    <div class="stat-card glass-card shadow-cyan" style="padding: 12px 16px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-size: 11px; color: var(--text-secondary);">Dolar ($)</span>
+                                            <span class="rate-trend" id="usdTrend" style="font-size: 10px; font-weight: bold; color: var(--color-green);">+0.0%</span>
+                                        </div>
+                                        <h3 id="portfolioUsd" style="margin: 4px 0 0 0; font-size: 18px;">$0.00</h3>
+                                        <small class="text-muted" style="font-size: 10px;">Değeri: <strong id="portfolioUsdTl">0,00 ₺</strong></small><br>
+                                        <small class="text-muted" style="font-size: 9px;">Kur: <span id="rateUsd">32.50</span> ₺</small>
+                                    </div>
+                                    <div class="stat-card glass-card shadow-purple" style="padding: 12px 16px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-size: 11px; color: var(--text-secondary);">Euro (€)</span>
+                                            <span class="rate-trend" id="eurTrend" style="font-size: 10px; font-weight: bold; color: var(--color-green);">+0.0%</span>
+                                        </div>
+                                        <h3 id="portfolioEur" style="margin: 4px 0 0 0; font-size: 18px;">€0.00</h3>
+                                        <small class="text-muted" style="font-size: 10px;">Değeri: <strong id="portfolioEurTl">0,00 ₺</strong></small><br>
+                                        <small class="text-muted" style="font-size: 9px;">Kur: <span id="rateEur">35.20</span> ₺</small>
+                                    </div>
+                                    <div class="stat-card glass-card shadow-orange" style="padding: 12px 16px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-size: 11px; color: var(--text-secondary);">Altın (gr)</span>
+                                            <span class="rate-trend" id="goldTrend" style="font-size: 10px; font-weight: bold; color: var(--color-green);">+0.0%</span>
+                                        </div>
+                                        <h3 id="portfolioGold" style="margin: 4px 0 0 0; font-size: 18px;">0.00 gr</h3>
+                                        <small class="text-muted" style="font-size: 10px;">Değeri: <strong id="portfolioGoldTl">0,00 ₺</strong></small><br>
+                                        <small class="text-muted" style="font-size: 9px;">Kur: <span id="rateGold">2450.00</span> ₺</small>
+                                    </div>
+                                    <div class="stat-card glass-card shadow-cyan" style="padding: 12px 16px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-size: 11px; color: var(--text-secondary);">Bitcoin (BTC)</span>
+                                            <span class="rate-trend" id="btcTrend" style="font-size: 10px; font-weight: bold; color: var(--color-green);">+0.0%</span>
+                                        </div>
+                                        <h3 id="portfolioBtc" style="margin: 4px 0 0 0; font-size: 16px;">0.0000 BTC</h3>
+                                        <small class="text-muted" style="font-size: 10px;">Değeri: <strong id="portfolioBtcTl">0,00 ₺</strong></small><br>
+                                        <small class="text-muted" style="font-size: 9px;">Kur: <span id="rateBtc">2150000.00</span> ₺</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Portföy Değeri Grafik Alanı -->
+                                <div class="glass-card" style="padding: 16px; background: rgba(0, 0, 0, 0.2);">
+                                    <h4 style="margin: 0 0 12px 0; font-size: 13px;">Toplam Portföy TL Değer Analizi</h4>
+                                    <div style="height: 220px; position: relative;">
+                                        <canvas id="portfolioHistoryChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Side: Buy/Sell Assets Form -->
+                        <div class="glass-card flex-1">
+                            <div class="card-header">
+                                <h3>Alım & Satım İşlemleri</h3>
+                            </div>
+                            <div class="card-body">
+                                <form id="assetTradeForm" class="styled-form">
+                                    <div class="form-group">
+                                        <label for="tradeType">İşlem Yönü</label>
+                                        <select id="tradeType" required>
+                                            <option value="buy">Varlık Satın Al (TL ile)</option>
+                                            <option value="sell">Varlık Sat (TL'ye Dönüştür)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="tradeAsset">Varlık Türü</label>
+                                        <select id="tradeAsset" required>
+                                            <option value="usd">Dolar ($)</option>
+                                            <option value="eur">Euro (€)</option>
+                                            <option value="gold">Altın (Gram)</option>
+                                            <option value="btc">Bitcoin (BTC)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="tradeAmount">Miktar</label>
+                                        <input type="number" id="tradeAmount" min="0.00001" step="any" required placeholder="0.00">
+                                    </div>
+                                    <div class="form-group" style="background: rgba(255,255,255,0.02); padding: 10px; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
+                                        <span style="font-size: 11px; color: var(--text-secondary);">Tahmini Tutar:</span>
+                                        <strong id="tradeEstTotal" class="text-neon-cyan" style="float: right;">0,00 ₺</strong>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">İşlemi Tamamla</button>
+                                </form>
                             </div>
                         </div>
                     </div>

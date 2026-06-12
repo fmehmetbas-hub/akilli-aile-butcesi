@@ -50,7 +50,15 @@ const DEMO_DATA_STATE = {
         "Sağlık": 3000,
         "Giyim": 5000,
         "Diğer": 2000
-    }
+    },
+    portfolio: {
+        usd: 1200,
+        eur: 800,
+        gold: 25,
+        btc: 0.015,
+        history: [82000, 85000, 89000, 87500, 93000, 94600]
+    },
+    shoppingCart: []
 };
 
 // Temiz Başlangıç Durumu
@@ -74,13 +82,25 @@ const DEFAULT_STATE = {
         "Sağlık": 3000,
         "Giyim": 5000,
         "Diğer": 2000
-    }
+    },
+    portfolio: {
+        usd: 0,
+        eur: 0,
+        gold: 0,
+        btc: 0,
+        history: []
+    },
+    shoppingCart: []
 };
 
 // Global Uygulama Durum Değişkenleri
 let state = null;
 let selectedProfileForPinId = null;
 let enteredPin = "";
+
+// Global Yatırım Kurları
+let exchangeRates = { usd: 32.50, eur: 35.20, gold: 2450.00, btc: 2150000.00 };
+let lastRates = { usd: 32.50, eur: 35.20, gold: 2450.00, btc: 2150000.00 };
 
 // İnteraktif Tur Adımları
 const tourSteps = [
@@ -103,6 +123,13 @@ function initApp() {
     if (storedState) {
         try {
             state = JSON.parse(storedState);
+            // Uyumluluk kontrolleri (Eski localStorage verileri için)
+            if (!state.portfolio) {
+                state.portfolio = { usd: 0, eur: 0, gold: 0, btc: 0, history: [] };
+            }
+            if (!state.shoppingCart) {
+                state.shoppingCart = [];
+            }
         } catch (e) {
             console.error("State parse hatası, varsayılan yükleniyor...", e);
             state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -343,7 +370,7 @@ function bindEvents() {
         if (state.account && state.account.email === email && state.account.password === password) {
             checkWelcomeFlow();
         } else {
-            alert("E-posta veya şifre hatalı! Lütfen tekrar deneyiniz.");
+            showToast("E-posta veya şifre hatalı! Lütfen tekrar deneyiniz.", "error");
         }
     });
 
@@ -424,6 +451,69 @@ function bindEvents() {
         categoryLimitsForm.addEventListener("submit", (e) => {
             e.preventDefault();
             saveCategoryLimits();
+        });
+    }
+
+    // === YATIRIM VE PORTFÖY EVENT DİNLEYİCİLERİ ===
+    const simulateRatesBtn = document.getElementById("simulateRatesBtn");
+    if (simulateRatesBtn) {
+        simulateRatesBtn.addEventListener("click", () => {
+            simulateMarketRates();
+        });
+    }
+
+    const assetTradeForm = document.getElementById("assetTradeForm");
+    if (assetTradeForm) {
+        assetTradeForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            tradeAsset(e);
+        });
+    }
+
+    const tradeAmountInput = document.getElementById("tradeAmount");
+    const tradeAssetSelect = document.getElementById("tradeAsset");
+    const tradeTypeSelect = document.getElementById("tradeType");
+    const tradeEstTotal = document.getElementById("tradeEstTotal");
+
+    function updateEstTotal() {
+        if (!tradeAmountInput || !tradeAssetSelect || !tradeEstTotal) return;
+        const amount = parseFloat(tradeAmountInput.value) || 0;
+        const asset = tradeAssetSelect.value;
+        const rate = exchangeRates[asset] || 0;
+        const total = amount * rate;
+        tradeEstTotal.innerText = formatCurrency(total);
+    }
+
+    if (tradeAmountInput) {
+        tradeAmountInput.addEventListener("input", updateEstTotal);
+    }
+    if (tradeAssetSelect) {
+        tradeAssetSelect.addEventListener("change", updateEstTotal);
+    }
+    if (tradeTypeSelect) {
+        tradeTypeSelect.addEventListener("change", updateEstTotal);
+    }
+
+    // === AKILLI ALIŞVERİŞ SEPETİ DİNLEYİCİLERİ ===
+    const cartAddForm = document.getElementById("cartAddForm");
+    if (cartAddForm) {
+        cartAddForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            addToCart(e);
+        });
+    }
+
+    const clearCartBtn = document.getElementById("clearCartBtn");
+    if (clearCartBtn) {
+        clearCartBtn.addEventListener("click", () => {
+            clearCart();
+        });
+    }
+
+    const buyCartBtn = document.getElementById("buyCartBtn");
+    if (buyCartBtn) {
+        buyCartBtn.addEventListener("click", () => {
+            buyCart();
         });
     }
 }
@@ -593,7 +683,7 @@ function loadDemoData() {
         const tooltip = document.getElementById("onboardingTooltip");
         if (tooltip) tooltip.style.display = "none";
         
-        alert("Demo verileri başarıyla yüklendi!");
+        showToast("Demo verileri başarıyla yüklendi!", "success");
     }
 }
 
@@ -601,6 +691,22 @@ function loadDemoData() {
 // SEKME YÖNETİMİ
 // ==========================================================================
 function switchTab(tabName) {
+    const activeProfile = getActiveProfile();
+    if (activeProfile && activeProfile.role === "Çocuk" && tabName === "investments") {
+        showToast("Yatırım paneline sadece ebeveynler erişebilir!", "warning");
+        switchTab("dashboard");
+        
+        // Menüdeki active class'ı güncelle
+        document.querySelectorAll(".nav-item").forEach(i => {
+            if (i.getAttribute("data-tab") === "dashboard") {
+                i.classList.add("active");
+            } else {
+                i.classList.remove("active");
+            }
+        });
+        return;
+    }
+
     document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.remove("active"));
     const activePanel = document.getElementById(tabName + "Panel");
     if (activePanel) {
@@ -612,6 +718,7 @@ function switchTab(tabName) {
         transactions: { title: "Gelir & Giderler", subtitle: "Tüm aile bireylerinin gelir ve harcama kayıtları." },
         debts: { title: "Borç & Taksit Takibi", subtitle: "Borçlarınızı akıllı ödeme stratejileriyle yönetin." },
         sandbox: { title: "Karar Simülatörü", subtitle: "Finansal kararlar almadan önce gelecek bütçenizi simüle edin." },
+        investments: { title: "Yatırım & Varlık Portföyü", subtitle: "Altın, Döviz ve sanal varlıklarınızı anlık simülasyonlarla takip edin." },
         kidzone: { title: "Çocuk Dünyası", subtitle: "Görevlerinizi tamamlayarak harçlık biriktirin ve bütçenizi yönetin." }
     };
 
@@ -626,6 +733,9 @@ function switchTab(tabName) {
     } else if (tabName === "sandbox") {
         updateSandboxCharts();
         renderWishlistAssistant();
+        renderShoppingCart();
+    } else if (tabName === "investments") {
+        renderInvestments();
     }
 }
 
@@ -913,9 +1023,9 @@ function saveTransaction() {
                 .reduce((sum, t) => sum + t.amount, 0) + amount;
                 
             if (totalSpent >= limit) {
-                alert(`⚠️ DİKKAT: "${category}" bütçe limiti aşıldı! Limit: ${formatCurrency(limit)}, Toplam harcama: ${formatCurrency(totalSpent)}`);
+                showToast(`⚠️ DİKKAT: "${category}" bütçe limiti aşıldı! Limit: ${formatCurrency(limit)}, Toplam harcama: ${formatCurrency(totalSpent)}`, "error");
             } else if (totalSpent >= limit * 0.8) {
-                alert(`⚠️ UYARI: "${category}" bütçesi sınırda! Toplam harcama bütçenin %80'ine ulaştı. (${formatCurrency(totalSpent)} / ${formatCurrency(limit)})`);
+                showToast(`⚠️ UYARI: "${category}" bütçesi sınırda! Toplam harcama bütçenin %80'ine ulaştı. (${formatCurrency(totalSpent)} / ${formatCurrency(limit)})`, "warning");
             }
         }
     }
@@ -1353,7 +1463,7 @@ function settleSharedBalances() {
     saveState();
     updateUI();
     
-    alert("Ortak bütçe gider mahsuplaşması tamamlandı! Üye bakiyeleri eşitlendi.");
+    showToast("Ortak bütçe gider mahsuplaşması tamamlandı! Üye bakiyeleri eşitlendi.", "success");
 }
 
 // ==========================================================================
@@ -1753,7 +1863,7 @@ function completeTaskByKid(id) {
         task.status = "review"; // ebeveyn onayına gönder
         saveState();
         updateUI();
-        alert("Harika! Görev tamamlandı olarak işaretlendi ve ebeveyn onayına gönderildi.");
+        showToast("Harika! Görev tamamlandı olarak işaretlendi ve ebeveyn onayına gönderildi.", "success");
     }
 }
 
@@ -1795,7 +1905,7 @@ function approveTaskByParent(id) {
         saveState();
         updateUI();
         
-        alert("Görev onaylandı! Harçlık çocuğun kumbarasına yatırıldı ve ortak bütçeden düşüldü.");
+        showToast("Görev onaylandı! Harçlık çocuğun kumbarasına yatırıldı.", "success");
     }
 }
 
@@ -1987,7 +2097,7 @@ function saveCategoryLimits() {
     closeModal("manageLimitsModal");
     updateUI();
     
-    alert("Kategori limitleri başarıyla güncellendi!");
+    showToast("Kategori limitleri başarıyla güncellendi!", "success");
 }
 
 // --- 2. Tasarruf Ligi (Puan & Rozet) ---
@@ -1997,6 +2107,7 @@ function awardPoints(profileId, amount, reason) {
         if (profile.points === undefined) profile.points = 0;
         profile.points += amount;
         saveState();
+        showToast(`+${amount} Puan: ${profile.name} (${reason})`, "success");
         checkAndUnlockBadges(profileId);
     }
 }
@@ -2011,7 +2122,7 @@ function checkAndUnlockBadges(profileId) {
         const completedTasksCount = state.tasks.filter(t => t.assignedTo === profileId && t.status === "completed").length;
         if (completedTasksCount >= 3 && !profile.badges.includes("Görev Canavarı")) {
             profile.badges.push("Görev Canavarı");
-            alert(`🎉 ${profile.name} "Görev Canavarı" rozetini kazandı!`);
+            showToast(`🎉 ${profile.name} "Görev Canavarı" rozetini kazandı!`, "success");
         }
     }
 
@@ -2033,7 +2144,7 @@ function checkAndUnlockBadges(profileId) {
             
             if (withinLimit && !profile.badges.includes("Bütçe Koruyucusu")) {
                 profile.badges.push("Bütçe Koruyucusu");
-                alert(`🎉 ${profile.name} "Bütçe Koruyucusu" rozetini kazandı!`);
+                showToast(`🎉 ${profile.name} "Bütçe Koruyucusu" rozetini kazandı!`, "success");
             }
         }
     }
@@ -2042,10 +2153,10 @@ function checkAndUnlockBadges(profileId) {
     const currentBalance = getFamilyBalance();
     if (profile.role === "Çocuk" && profile.balanceContribution >= 500 && !profile.badges.includes("Birikim Ustası")) {
         profile.badges.push("Birikim Ustası");
-        alert(`🎉 ${profile.name} "Birikim Ustası" rozetini kazandı!`);
+        showToast(`🎉 ${profile.name} "Birikim Ustası" rozetini kazandı!`, "success");
     } else if (profile.role === "Ebeveyn" && currentBalance >= 20000 && !profile.badges.includes("Kumbara Ortağı")) {
         profile.badges.push("Kumbara Ortağı");
-        alert(`🎉 ${profile.name} "Kumbara Ortağı" rozetini kazandı!`);
+        showToast(`🎉 ${profile.name} "Kumbara Ortağı" rozetini kazandı!`, "success");
     }
 
     saveState();
@@ -2161,6 +2272,9 @@ function triggerCoinDrop() {
     const jarWidget = document.getElementById("savingsJarWidget");
     if (!jarWidget || jarWidget.style.display === "none") return;
     
+    // Ses çal
+    playCoinSound();
+    
     const coin = document.createElement("div");
     coin.className = "dropping-coin";
     
@@ -2168,6 +2282,9 @@ function triggerCoinDrop() {
     coin.style.left = `calc(50% + ${randomOffset}px)`;
     
     coinContainer.appendChild(coin);
+    
+    // Parçacıkları tetikle (coin dibe ulaşınca)
+    setTimeout(triggerCoinParticles, 650);
     
     setTimeout(() => {
         coin.remove();
@@ -2391,3 +2508,526 @@ function renderPaymentCalendar() {
         grid.appendChild(cell);
     }
 }
+
+// ==========================================================================
+// YENİ GÖRSEL VE İLERİ FİNANSAL YARDIMCI FONKSİYONLARI (TOAST, SES, YATIRIM, SEPET)
+// ==========================================================================
+
+// --- 1. Neon Toast Bildirim Sistemi ---
+function showToast(message, type = "info") {
+    const container = document.getElementById("toastContainer");
+    if (!container) return;
+    
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    
+    let icon = "fa-circle-info";
+    let title = "BİLGİ";
+    
+    if (type === "success") {
+        icon = "fa-circle-check";
+        title = "BAŞARILI";
+    } else if (type === "warning") {
+        icon = "fa-triangle-exclamation";
+        title = "UYARI";
+    } else if (type === "error") {
+        icon = "fa-circle-xmark";
+        title = "HATA";
+    }
+    
+    toast.innerHTML = `
+        <i class="fa-solid ${icon} toast-icon"></i>
+        <div class="toast-content">
+            <h5>${title}</h5>
+            <p>${message}</p>
+        </div>
+    `;
+    
+    container.appendChild(toast);
+    
+    // 4 saniye sonra kapat
+    setTimeout(() => {
+        toast.classList.add("hide");
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 4000);
+}
+window.showToast = showToast;
+
+// --- 2. Kumbara Synth Ses & Parçacık Patlaması ---
+function playCoinSound() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.type = "sine";
+        const now = audioCtx.currentTime;
+        
+        // Klasik retro altın para sesi (ikili ton)
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(880, now + 0.08); // A5
+        osc.frequency.setValueAtTime(1174.66, now + 0.16); // D6
+        
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.12, now + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        
+        osc.start(now);
+        osc.stop(now + 0.5);
+    } catch (e) {
+        console.log("Ses sentezleyici başlatılamadı:", e);
+    }
+}
+
+function triggerCoinParticles() {
+    const jar = document.querySelector("#savingsJarWidget .jar-glass");
+    if (!jar || document.getElementById("savingsJarWidget").style.display === "none") return;
+    
+    // 12 adet altın parçacık patlat
+    for (let i = 0; i < 12; i++) {
+        const p = document.createElement("div");
+        p.className = "jar-particle";
+        
+        // Kavanozun taban-orta bölgesinden başlatalım
+        p.style.bottom = "15px";
+        p.style.left = "calc(50% - 3px)";
+        
+        // Yukarı doğru yarım daire açıları
+        const angle = Math.random() * Math.PI - Math.PI; // -180 ile 0 derece arası
+        const dist = Math.random() * 45 + 15;
+        const dx = Math.cos(angle) * dist;
+        const dy = Math.sin(angle) * dist - 10;
+        
+        p.style.setProperty("--dx", `${dx}px`);
+        p.style.setProperty("--dy", `${dy}px`);
+        
+        jar.appendChild(p);
+        
+        // Animasyon bitince temizle
+        setTimeout(() => p.remove(), 600);
+    }
+}
+
+// --- 3. Yatırım & Varlık Portföy Yönetimi ---
+let portfolioChartInstance = null;
+
+function renderInvestments() {
+    if (!state.portfolio) {
+        state.portfolio = { usd: 0, eur: 0, gold: 0, btc: 0, history: [] };
+    }
+    
+    // Değerleri HTML'e yaz
+    document.getElementById("portfolioUsd").innerText = `$${state.portfolio.usd.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById("portfolioEur").innerText = `€${state.portfolio.eur.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById("portfolioGold").innerText = `${state.portfolio.gold.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} gr`;
+    document.getElementById("portfolioBtc").innerText = `${state.portfolio.btc.toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 6 })} BTC`;
+    
+    const usdTl = state.portfolio.usd * exchangeRates.usd;
+    const eurTl = state.portfolio.eur * exchangeRates.eur;
+    const goldTl = state.portfolio.gold * exchangeRates.gold;
+    const btcTl = state.portfolio.btc * exchangeRates.btc;
+    
+    document.getElementById("portfolioUsdTl").innerText = formatCurrency(usdTl);
+    document.getElementById("portfolioEurTl").innerText = formatCurrency(eurTl);
+    document.getElementById("portfolioGoldTl").innerText = formatCurrency(goldTl);
+    document.getElementById("portfolioBtcTl").innerText = formatCurrency(btcTl);
+    
+    document.getElementById("rateUsd").innerText = exchangeRates.usd.toFixed(2);
+    document.getElementById("rateEur").innerText = exchangeRates.eur.toFixed(2);
+    document.getElementById("rateGold").innerText = exchangeRates.gold.toFixed(2);
+    document.getElementById("rateBtc").innerText = exchangeRates.btc.toLocaleString('tr-TR');
+    
+    // Kurlar trend göstergelerini güncelle
+    updateTrendDisplay("usdTrend", exchangeRates.usd, lastRates.usd);
+    updateTrendDisplay("eurTrend", exchangeRates.eur, lastRates.eur);
+    updateTrendDisplay("goldTrend", exchangeRates.gold, lastRates.gold);
+    updateTrendDisplay("btcTrend", exchangeRates.btc, lastRates.btc);
+    
+    // Formdaki Tahmini Tutarı güncelle
+    const amountInput = document.getElementById("tradeAmount");
+    if (amountInput) amountInput.value = "";
+    const estTotalLabel = document.getElementById("tradeEstTotal");
+    if (estTotalLabel) estTotalLabel.innerText = "0,00 ₺";
+    
+    // Çizgi grafiğini çiz
+    renderPortfolioChart();
+}
+
+function updateTrendDisplay(elementId, current, last) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    
+    const diff = current - last;
+    const pct = last > 0 ? (diff / last) * 100 : 0;
+    
+    if (diff > 0) {
+        el.className = "rate-trend";
+        el.innerHTML = `<i class="fa-solid fa-caret-up"></i> +${pct.toFixed(1)}%`;
+    } else if (diff < 0) {
+        el.className = "rate-trend negative";
+        el.innerHTML = `<i class="fa-solid fa-caret-down"></i> ${pct.toFixed(1)}%`;
+    } else {
+        el.className = "rate-trend";
+        el.style.background = "rgba(255,255,255,0.03)";
+        el.style.color = "var(--text-secondary)";
+        el.innerHTML = `<i class="fa-solid fa-minus"></i> 0.0%`;
+    }
+}
+
+function simulateMarketRates() {
+    // Son kurları yedekle
+    lastRates = { ...exchangeRates };
+    
+    // Kurları dalgalandır (+-%1.5)
+    exchangeRates.usd *= (1 + (Math.random() * 0.03 - 0.015));
+    exchangeRates.eur *= (1 + (Math.random() * 0.03 - 0.015));
+    exchangeRates.gold *= (1 + (Math.random() * 0.03 - 0.015));
+    exchangeRates.btc *= (1 + (Math.random() * 0.05 - 0.025)); // BTC daha volatil
+    
+    // Portföyün yeni değerini hesaplayıp tarihçeye kaydet
+    const totalValue = 
+        (state.portfolio.usd * exchangeRates.usd) +
+        (state.portfolio.eur * exchangeRates.eur) +
+        (state.portfolio.gold * exchangeRates.gold) +
+        (state.portfolio.btc * exchangeRates.btc);
+        
+    if (!state.portfolio.history) state.portfolio.history = [];
+    state.portfolio.history.push(Math.round(totalValue));
+    
+    // Max 10 tarih kaydı tutalım
+    if (state.portfolio.history.length > 10) {
+        state.portfolio.history.shift();
+    }
+    
+    saveState();
+    renderInvestments();
+    
+    showToast("Piyasa kurları simüle edildi ve portföy değeriniz güncellendi!", "success");
+    setTimeout(triggerCoinDrop, 100);
+}
+
+function tradeAsset(e) {
+    const tradeType = document.getElementById("tradeType").value;
+    const asset = document.getElementById("tradeAsset").value;
+    const amount = parseFloat(document.getElementById("tradeAmount").value) || 0;
+    
+    if (amount <= 0) {
+        showToast("Lütfen geçerli bir miktar girin!", "error");
+        return;
+    }
+    
+    const rate = exchangeRates[asset];
+    const totalCost = amount * rate;
+    const currentBalance = getFamilyBalance();
+    
+    if (tradeType === "buy") {
+        if (currentBalance < totalCost) {
+            showToast("Yetersiz ortak bakiye! Bu alım için ortak bakiye yetersiz.", "error");
+            return;
+        }
+        
+        // Varlığı ekle
+        state.portfolio[asset] = (state.portfolio[asset] || 0) + amount;
+        
+        // Ortak bakiyeden düş (Harcama olarak kaydet)
+        const trans = {
+            id: "t_" + Date.now(),
+            desc: `${asset.toUpperCase()} Alımı (${amount} Birim)`,
+            amount: totalCost,
+            type: "expense",
+            category: "Diğer",
+            date: new Date().toISOString().split('T')[0],
+            memberId: state.activeProfileId,
+            isRecurring: false
+        };
+        state.transactions.unshift(trans);
+        showToast(`${amount} ${asset.toUpperCase()} başarıyla satın alındı!`, "success");
+    } else {
+        // Satış işlemi
+        if ((state.portfolio[asset] || 0) < amount) {
+            showToast(`Yetersiz varlık miktarı! Portföyünüzde yeterli ${asset.toUpperCase()} bulunmuyor.`, "error");
+            return;
+        }
+        
+        // Varlığı düş
+        state.portfolio[asset] -= amount;
+        
+        // Ortak bakiyeye ekle (Gelir olarak kaydet)
+        const trans = {
+            id: "t_" + Date.now(),
+            desc: `${asset.toUpperCase()} Satışı (${amount} Birim)`,
+            amount: totalCost,
+            type: "income",
+            category: "Maaş",
+            date: new Date().toISOString().split('T')[0],
+            memberId: state.activeProfileId,
+            isRecurring: false
+        };
+        state.transactions.unshift(trans);
+        showToast(`${amount} ${asset.toUpperCase()} başarıyla nakite çevrildi!`, "success");
+    }
+    
+    // Toplam portföy değerini güncelle ve geçmişe ekle
+    const totalValue = 
+        (state.portfolio.usd * exchangeRates.usd) +
+        (state.portfolio.eur * exchangeRates.eur) +
+        (state.portfolio.gold * exchangeRates.gold) +
+        (state.portfolio.btc * exchangeRates.btc);
+    
+    if (!state.portfolio.history) state.portfolio.history = [];
+    state.portfolio.history.push(Math.round(totalValue));
+    if (state.portfolio.history.length > 10) state.portfolio.history.shift();
+    
+    saveState();
+    updateUI();
+    renderInvestments();
+    setTimeout(triggerCoinDrop, 100);
+}
+
+function renderPortfolioChart() {
+    const ctx = document.getElementById("portfolioHistoryChart");
+    if (!ctx) return;
+    
+    if (portfolioChartInstance) {
+        portfolioChartInstance.destroy();
+    }
+    
+    const historyData = state.portfolio && state.portfolio.history && state.portfolio.history.length > 0
+        ? state.portfolio.history 
+        : [50000, 52000, 51000, 55000, 54000, 58000];
+        
+    const labels = historyData.map((_, idx) => `${idx + 1}. Dalga`);
+    
+    portfolioChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Portföy Değeri (₺)',
+                data: historyData,
+                borderColor: '#00f2fe',
+                borderWidth: 2,
+                pointBackgroundColor: '#00f2fe',
+                pointBorderColor: 'rgba(255, 255, 255, 0.8)',
+                pointRadius: 4,
+                backgroundColor: 'rgba(0, 242, 254, 0.05)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                    ticks: { color: 'rgba(255, 255, 255, 0.5)', font: { size: 10 } }
+                },
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                    ticks: { 
+                        color: 'rgba(255, 255, 255, 0.5)', 
+                        font: { size: 10 },
+                        callback: function(value) { return value.toLocaleString('tr-TR') + ' ₺'; }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// --- 4. Akıllı Alışveriş Sepeti & Hedef Gecikme Simülasyonu ---
+function renderShoppingCart() {
+    if (!state.shoppingCart) state.shoppingCart = [];
+    
+    const list = document.getElementById("cartItemsList");
+    const totalLabel = document.getElementById("cartTotalSum");
+    const buyBtn = document.getElementById("buyCartBtn");
+    
+    if (!list) return;
+    
+    list.innerHTML = "";
+    
+    let totalSum = 0;
+    
+    if (state.shoppingCart.length === 0) {
+        list.innerHTML = `<tr><td colspan="3" class="text-center text-muted">Sepetiniz boş.</td></tr>`;
+        if (totalLabel) totalLabel.innerText = "0,00 ₺";
+        if (buyBtn) buyBtn.disabled = true;
+        document.getElementById("cartDelayWarning").style.display = "none";
+        return;
+    }
+    
+    state.shoppingCart.forEach((item, idx) => {
+        totalSum += item.price;
+        
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td><strong style="color: white;">${item.name}</strong></td>
+            <td class="text-right text-neon-cyan">${formatCurrency(item.price)}</td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline text-red" onclick="removeFromCart(${idx})" style="padding: 2px 6px; font-size: 10px;" type="button"><i class="fa-solid fa-xmark"></i></button>
+            </td>
+        `;
+        list.appendChild(row);
+    });
+    
+    if (totalLabel) totalLabel.innerText = formatCurrency(totalSum);
+    if (buyBtn) buyBtn.disabled = false;
+    
+    // Gecikme süresi simülasyonunu çalıştır
+    simulateGoalDelay(totalSum);
+}
+
+function addToCart(e) {
+    const nameInput = document.getElementById("cartItemName");
+    const priceInput = document.getElementById("cartItemPrice");
+    
+    if (!nameInput || !priceInput) return;
+    
+    const name = nameInput.value.trim();
+    const price = parseFloat(priceInput.value) || 0;
+    
+    if (name === "" || price <= 0) {
+        showToast("Lütfen geçerli ürün adı ve fiyatı girin!", "error");
+        return;
+    }
+    
+    if (!state.shoppingCart) state.shoppingCart = [];
+    
+    state.shoppingCart.push({ name, price });
+    
+    nameInput.value = "";
+    priceInput.value = "";
+    
+    saveState();
+    renderShoppingCart();
+    showToast(`${name} sepete eklendi.`, "info");
+}
+
+function removeFromCart(idx) {
+    if (!state.shoppingCart) return;
+    
+    const item = state.shoppingCart[idx];
+    state.shoppingCart.splice(idx, 1);
+    
+    saveState();
+    renderShoppingCart();
+    if (item) showToast(`${item.name} sepetten çıkarıldı.`, "info");
+}
+
+function clearCart() {
+    state.shoppingCart = [];
+    saveState();
+    renderShoppingCart();
+    showToast("Sepet temizlendi.", "info");
+}
+
+function buyCart() {
+    if (!state.shoppingCart || state.shoppingCart.length === 0) return;
+    
+    let totalSum = 0;
+    state.shoppingCart.forEach(item => totalSum += item.price);
+    
+    const currentBalance = getFamilyBalance();
+    if (currentBalance < totalSum) {
+        showToast("Yetersiz bakiye! Bu sepeti satın almak için bütçeniz yeterli değil.", "error");
+        return;
+    }
+    
+    const confirmBuy = confirm(`Toplam tutarı ${formatCurrency(totalSum)} olan sepeti satın alıp bütçeye gider olarak işlemek istiyor musunuz?`);
+    if (!confirmBuy) return;
+    
+    // Gider işlemi oluştur
+    const trans = {
+        id: "t_" + Date.now(),
+        desc: `Alışveriş Sepeti Alımı (${state.shoppingCart.map(i => i.name).join(', ')})`,
+        amount: totalSum,
+        type: "expense",
+        category: "Diğer",
+        date: new Date().toISOString().split('T')[0],
+        memberId: state.activeProfileId,
+        isRecurring: false
+    };
+    
+    state.transactions.unshift(trans);
+    
+    // Sepeti temizle
+    state.shoppingCart = [];
+    
+    saveState();
+    updateUI();
+    renderShoppingCart();
+    
+    showToast("Sepet satın alındı ve gider olarak bütçeye işlendi!", "success");
+    setTimeout(triggerCoinDrop, 100);
+}
+
+function simulateGoalDelay(totalSum) {
+    const warningBox = document.getElementById("cartDelayWarning");
+    if (!warningBox) return;
+    
+    if (state.goals.length === 0) {
+        warningBox.style.display = "none";
+        return;
+    }
+    
+    const activeGoal = state.goals[0]; // En yakın hedef
+    const financials = calculateFinancials();
+    const monthlyNetSavings = Math.max(0, financials.monthlyIncome - financials.monthlyExpense);
+    const currentBalance = getFamilyBalance();
+    
+    if (currentBalance >= activeGoal.cost) {
+        // Hedef zaten alınabiliyor
+        const balanceAfter = currentBalance - totalSum;
+        if (balanceAfter < activeGoal.cost) {
+            const delayMonths = monthlyNetSavings > 0 ? Math.ceil((activeGoal.cost - balanceAfter) / monthlyNetSavings) : "∞";
+            warningBox.style.display = "block";
+            warningBox.innerHTML = `
+                <i class="fa-solid fa-triangle-exclamation text-red" style="font-size: 14px; margin-right: 6px;"></i>
+                <strong>DİKKAT:</strong> Şu an hazırda alabileceğiniz <strong>"${activeGoal.title}"</strong> hedefini, bu sepet alımından sonra bakiye yetersiz kalacağı için hemen alamayacaksınız! Biriktirmek için yaklaşık <strong>${delayMonths} ay</strong> daha beklemeniz gerekecektir.
+            `;
+        } else {
+            warningBox.style.display = "block";
+            warningBox.innerHTML = `
+                <i class="fa-solid fa-circle-check text-green" style="font-size: 14px; margin-right: 6px;"></i>
+                <strong>GÜVENLİ:</strong> Bu sepeti alsanız dahi ortak bakiyeniz en yakın hedefiniz olan <strong>"${activeGoal.title}"</strong> (${formatCurrency(activeGoal.cost)}) için yeterli kalacaktır.
+            `;
+        }
+    } else {
+        // Hedefe henüz para biriktiriliyor
+        if (monthlyNetSavings <= 0) {
+            warningBox.style.display = "block";
+            warningBox.innerHTML = `
+                <i class="fa-solid fa-circle-info text-neon-cyan" style="font-size: 14px; margin-right: 6px;"></i>
+                <strong>BİLGİ:</strong> Bütçenizde aylık net tasarruf bulunmamaktadır. Sepeti alsanız da almasanız da hedeflerinize ulaşmak için öncelikle gider kısıtlaması yapmalısınız.
+            `;
+        } else {
+            const normalMonths = Math.ceil((activeGoal.cost - currentBalance) / monthlyNetSavings);
+            const balanceAfter = currentBalance - totalSum;
+            const delayedMonths = Math.ceil((activeGoal.cost - balanceAfter) / monthlyNetSavings);
+            const diff = delayedMonths - normalMonths;
+            
+            if (diff > 0) {
+                warningBox.style.display = "block";
+                warningBox.innerHTML = `
+                    <i class="fa-solid fa-hourglass-half text-red" style="font-size: 14px; margin-right: 6px;"></i>
+                    <strong>HEDEF GECİKMESİ:</strong> Bu sepeti satın almanız, en yakın birikim hedefiniz olan <strong>"${activeGoal.title}"</strong> hedefine ulaşmanızı tam <strong>${diff} ay</strong> geciktirecektir! (Ulaşım süresi: ${normalMonths} aydan ${delayedMonths} aya çıkacak).
+                `;
+            } else {
+                warningBox.style.display = "none";
+            }
+        }
+    }
+}
+
+// Global scope helpers for onclick callbacks inside table dynamic render
+window.removeFromCart = removeFromCart;
