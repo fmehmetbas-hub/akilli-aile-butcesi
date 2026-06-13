@@ -125,8 +125,8 @@ let currentTourStep = 0;
 // ==========================================================================
 // UYGULAMA BAŞLANGICI VE LOAD İŞLEMLERİ (SUPABASE BULUT ENTEGRASYONU)
 // ==========================================================================
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+const SUPABASE_URL = "https://gacxkjgcaptmqpikqpqv.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhY3hramdjYXB0bXFwaWtxcHF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzMjAyNDksImV4cCI6MjA5Njg5NjI0OX0.V-ibRcg8a8g9h4ubWNEDpDte6ycZnZw2-nwsJPJUa2w";
 
 let supabaseClient = null;
 if (typeof supabase !== 'undefined' && SUPABASE_URL !== "YOUR_SUPABASE_URL" && SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY") {
