@@ -29,15 +29,15 @@
             </div>
             
             <div class="segmented-control margin-top">
-                <input type="radio" name="authTab" id="tabRegister" value="register" checked>
+                <input type="radio" name="authTab" id="tabRegister" value="register">
                 <label for="tabRegister">Kayıt Ol</label>
                 
-                <input type="radio" name="authTab" id="tabLogin" value="login">
+                <input type="radio" name="authTab" id="tabLogin" value="login" checked>
                 <label for="tabLogin">Giriş Yap</label>
             </div>
 
-            <!-- Kayıt Formu -->
-            <form id="registerForm" class="styled-form margin-top">
+            <!-- Kayıt Formu (Varsayılan olarak gizli) -->
+            <form id="registerForm" class="styled-form margin-top" style="display: none;">
                 <div class="form-group">
                     <label for="regEmail">E-posta Adresi</label>
                     <input type="email" id="regEmail" required placeholder="ornek@aile.com">
@@ -49,8 +49,8 @@
                 <button type="submit" class="btn btn-primary btn-block">Hesap Oluştur</button>
             </form>
 
-            <!-- Giriş Formu (Varsayılan olarak gizli) -->
-            <form id="loginForm" class="styled-form margin-top" style="display: none;">
+            <!-- Giriş Formu -->
+            <form id="loginForm" class="styled-form margin-top">
                 <div class="form-group">
                     <label for="logEmail">E-posta Adresi</label>
                     <input type="email" id="logEmail" required placeholder="ornek@aile.com">
