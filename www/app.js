@@ -81,6 +81,7 @@ const DEFAULT_STATE = {
     scenarios: [],
     tasks: [],
     onboardingCompleted: false,
+    demoAlertDismissed: false,
     categoryLimits: {
         "Market": 8000,
         "Fatura": 3000,
@@ -583,6 +584,17 @@ function bindEvents() {
     if (loadDemoBtn) {
         loadDemoBtn.addEventListener("click", () => {
             loadDemoData();
+        });
+    }
+    
+    const closeDemoBtn = document.getElementById("closeDemoAlertBtn");
+    if (closeDemoBtn) {
+        closeDemoBtn.addEventListener("click", () => {
+            state.demoAlertDismissed = true;
+            saveState();
+            const alertDiv = document.getElementById("demoDataAlert");
+            if (alertDiv) alertDiv.style.display = "none";
+            showToast("Demo veri yükleme uyarısı gizlendi.", "info");
         });
     }
 
@@ -2417,7 +2429,7 @@ function updateUI() {
     const demoDataAlert = document.getElementById("demoDataAlert");
     if (demoDataAlert) {
         const activeProfile = getActiveProfile();
-        if (state.transactions.length === 0 && activeProfile && activeProfile.role === "Ebeveyn") {
+        if (!state.demoAlertDismissed && state.transactions.length === 0 && activeProfile && activeProfile.role === "Ebeveyn") {
             demoDataAlert.style.display = "flex";
         } else {
             demoDataAlert.style.display = "none";
