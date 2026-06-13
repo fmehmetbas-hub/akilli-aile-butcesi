@@ -1287,27 +1287,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
     100% { transform: scale(1); }
 }
 
-.task-status-badge {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    display: inline-block;
-}
-
-.task-status-badge.pending {
-    background: var(--color-orange-glow);
-    color: var(--color-orange);
-}
-.task-status-badge.review {
-    background: var(--color-cyan-glow);
-    color: var(--color-cyan);
-}
-.task-status-badge.completed {
-    background: var(--color-green-glow);
-    color: var(--color-green);
-}
-
 /* Parent Only Class */
 .parent-only {
     display: none; /* JS will toggle visibility based on role */
@@ -2240,5 +2219,175 @@ body.role-child .parent-only {
         box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);
         border-color: rgba(239, 68, 68, 0.5);
     }
+}
+
+/* ==========================================================================
+   YENİ ÖZELLİKLER: QUICK ACTIONS, CONNECTION STATUS & WISHLIST BADGES
+   ========================================================================== */
+
+/* Hızlı İşlem Düğmeleri (Quick Actions) */
+.quick-actions-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 768px) {
+    .quick-actions-container {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.btn-quick-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 14px 10px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-primary);
+    gap: 6px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.btn-quick-action i {
+    font-size: 20px;
+    margin-bottom: 2px;
+    transition: transform 0.3s ease;
+}
+
+.btn-quick-action .action-title {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.btn-quick-action .action-price {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+.btn-quick-action:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 240, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 240, 255, 0.1);
+}
+
+.btn-quick-action:hover i {
+    transform: scale(1.1);
+}
+
+.btn-quick-action:active {
+    transform: translateY(1px);
+}
+
+/* Bulut Bağlantı Durumu Göstergesi */
+.connection-status-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.connection-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    position: relative;
+    display: inline-block;
+}
+
+.connection-status-dot.online {
+    background-color: var(--color-green, #00e599);
+    box-shadow: 0 0 8px var(--color-green, #00e599);
+    animation: neon-pulse-green 2s infinite ease-in-out;
+}
+
+.connection-status-dot.offline {
+    background-color: var(--color-orange, #ff7a00);
+    box-shadow: 0 0 8px var(--color-orange, #ff7a00);
+    animation: neon-pulse-orange 2s infinite ease-in-out;
+}
+
+@keyframes neon-pulse-green {
+    0% {
+        box-shadow: 0 0 2px var(--color-green, #00e599);
+        opacity: 0.6;
+    }
+    50% {
+        box-shadow: 0 0 10px var(--color-green, #00e599);
+        opacity: 1;
+    }
+    100% {
+        box-shadow: 0 0 2px var(--color-green, #00e599);
+        opacity: 0.6;
+    }
+}
+
+@keyframes neon-pulse-orange {
+    0% {
+        box-shadow: 0 0 2px var(--color-orange, #ff7a00);
+        opacity: 0.6;
+    }
+    50% {
+        box-shadow: 0 0 10px var(--color-orange, #ff7a00);
+        opacity: 1;
+    }
+    100% {
+        box-shadow: 0 0 2px var(--color-orange, #ff7a00);
+        opacity: 0.6;
+    }
+}
+
+@media (max-width: 768px) {
+    .connection-status-container {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        width: 100%;
+        justify-content: flex-start;
+        padding: 4px 10px;
+    }
+}
+
+/* Hedef Tahmin Rozetleri */
+.goal-forecast-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.goal-forecast-badge.success {
+    background: rgba(0, 229, 153, 0.1);
+    color: var(--color-green, #00e599);
+    border: 1px solid rgba(0, 229, 153, 0.2);
+}
+.goal-forecast-badge.warning {
+    background: rgba(255, 122, 0, 0.1);
+    color: var(--color-orange, #ff7a00);
+    border: 1px solid rgba(255, 122, 0, 0.2);
+}
+.goal-forecast-badge.info {
+    background: rgba(0, 240, 255, 0.1);
+    color: var(--color-cyan, #00f0ff);
+    border: 1px solid rgba(0, 240, 255, 0.2);
 }
 

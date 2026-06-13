@@ -7,8 +7,7 @@
 const DEMO_DATA_STATE = {
     profiles: [
         { id: "p1", name: "Faruk", role: "Ebeveyn", avatar: "fa-user-tie", balanceContribution: 32000, pin: "1234", points: 350, badges: ["Bütçe Koruyucusu", "Kumbara Ortağı"] },
-        { id: "p2", name: "Ayşe", role: "Ebeveyn", avatar: "fa-user-nurse", balanceContribution: 18000, pin: "5678", points: 280, badges: ["Bütçe Koruyucusu"] },
-        { id: "p3", name: "Can", role: "Çocuk", avatar: "fa-user-astronaut", balanceContribution: 250, pin: "", points: 150, badges: ["Görev Canavarı"] }
+        { id: "p2", name: "Ayşe", role: "Ebeveyn", avatar: "fa-user-nurse", balanceContribution: 18000, pin: "5678", points: 280, badges: ["Bütçe Koruyucusu"] }
     ],
     activeProfileId: "p1",
     transactions: [
@@ -29,16 +28,11 @@ const DEMO_DATA_STATE = {
         { id: "d3", title: "Elden Borç (Enişte)", creditor: "Ahmet Enişte", totalAmount: 10000, interestRate: 0.0, minPayment: 2000 }
     ],
     goals: [
-        { id: "g1", title: "PlayStation 5 Pro", cost: 28000, memberId: "p3" },
+        { id: "g1", title: "PlayStation 5 Pro", cost: 28000, memberId: "p1" },
         { id: "g2", title: "Yaz Tatili (Bodrum)", cost: 60000, memberId: "p1" }
     ],
     scenarios: [
         { id: "s1", name: "Kira Artışı (%50)", type: "expense", amount: 9000, duration: 12, startMonth: 2, active: false }
-    ],
-    tasks: [
-        { id: "tk1", title: "Haftalık 2 Kitap Okumak", reward: 80, assignedTo: "p3", status: "completed" },
-        { id: "tk2", title: "Odasını Düzenli Toplamak", reward: 50, assignedTo: "p3", status: "review" },
-        { id: "tk3", title: "Akşam Sofra Kurumuna Yardım", reward: 30, assignedTo: "p3", status: "pending" }
     ],
     categoryLimits: {
         "Market": 8000,
@@ -61,12 +55,12 @@ const DEMO_DATA_STATE = {
     trackedAssets: { usd: true, eur: true, gold: true, btc: true },
     shoppingCart: [],
     savingsHistory: [
-        { month: "Oca 2026", safe: 25000, portfolio: 12000, kids: 200, total: 37200, netChange: 5000 },
-        { month: "Şub 2026", safe: 28000, portfolio: 14000, kids: 220, total: 42220, netChange: 5020 },
-        { month: "Mar 2026", safe: 32000, portfolio: 13500, kids: 240, total: 45740, netChange: 3520 },
-        { month: "Nis 2026", safe: 38000, portfolio: 17000, kids: 210, total: 55210, netChange: 9470 },
-        { month: "May 2026", safe: 36000, portfolio: 15500, kids: 230, total: 51730, netChange: -3480 },
-        { month: "Haz 2026", safe: 50000, portfolio: 48600, kids: 250, total: 98850, netChange: 47120 }
+        { month: "Oca 2026", safe: 25000, portfolio: 12000, total: 37000, netChange: 5000 },
+        { month: "Şub 2026", safe: 28000, portfolio: 14000, total: 42000, netChange: 5000 },
+        { month: "Mar 2026", safe: 32000, portfolio: 13500, total: 45500, netChange: 3500 },
+        { month: "Nis 2026", safe: 38000, portfolio: 17000, total: 55000, netChange: 9500 },
+        { month: "May 2026", safe: 36000, portfolio: 15500, total: 51500, netChange: -3500 },
+        { month: "Haz 2026", safe: 50000, portfolio: 48600, total: 98600, netChange: 47100 }
     ]
 };
 
@@ -79,7 +73,6 @@ const DEFAULT_STATE = {
     debts: [],
     goals: [],
     scenarios: [],
-    tasks: [],
     onboardingCompleted: false,
     demoAlertDismissed: false,
     categoryLimits: {
@@ -141,8 +134,46 @@ if (typeof supabase !== 'undefined' && SUPABASE_URL !== "YOUR_SUPABASE_URL" && S
     console.log("Supabase configuration not found or placeholder values active. Running in Local-Only Fallback mode.");
 }
 
+// Connection status update helpers
+function updateConnectionStatus(isOnline) {
+    const dot = document.getElementById("connectionStatusDot");
+    const text = document.getElementById("connectionStatusText");
+    if (!dot || !text) return;
+    
+    if (isOnline) {
+        dot.className = "connection-status-dot online";
+        text.innerText = "Bulut Eşleşti";
+    } else {
+        dot.className = "connection-status-dot offline";
+        text.innerText = "Yerel Mod";
+    }
+}
+
+async function checkConnectionStatus() {
+    if (!supabaseClient) {
+        updateConnectionStatus(false);
+        return false;
+    }
+    
+    try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) {
+            updateConnectionStatus(false);
+            return false;
+        }
+        updateConnectionStatus(true);
+        return true;
+    } catch (e) {
+        updateConnectionStatus(false);
+        return false;
+    }
+}
+
 async function syncStateWithCloud() {
-    if (!supabaseClient) return false;
+    if (!supabaseClient) {
+        updateConnectionStatus(false);
+        return false;
+    }
     try {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (user) {
@@ -154,18 +185,23 @@ async function syncStateWithCloud() {
             
             if (error && error.code !== 'PGRST116') {
                 console.error("Supabase fetch error:", error);
+                updateConnectionStatus(false);
                 return false;
             }
             
+            updateConnectionStatus(true);
             if (data && data.state_data) {
                 state = data.state_data;
                 localStorage.setItem("smart_budget_state", JSON.stringify(state));
                 console.log("State synced from Supabase cloud.");
                 return true;
             }
+        } else {
+            updateConnectionStatus(false);
         }
     } catch (e) {
         console.warn("Supabase fetch failed, running locally:", e);
+        updateConnectionStatus(false);
     }
     return false;
 }
@@ -215,6 +251,9 @@ async function initApp() {
                 updateUI();
             }
         }
+        await checkConnectionStatus();
+    } else {
+        updateConnectionStatus(false);
     }
 
     // Tarih inputunu bugün yap
@@ -290,13 +329,20 @@ async function saveState() {
                 
                 if (error) {
                     console.error("Supabase upsert error:", error);
+                    updateConnectionStatus(false);
                 } else {
                     console.log("Supabase state saved successfully.");
+                    updateConnectionStatus(true);
                 }
+            } else {
+                updateConnectionStatus(false);
             }
         } catch (e) {
             console.warn("Could not save to Supabase cloud:", e);
+            updateConnectionStatus(false);
         }
+    } else {
+        updateConnectionStatus(false);
     }
 }
 
@@ -370,16 +416,7 @@ function bindEvents() {
         saveScenario();
     });
 
-    // Çocuk Görevi Ekleme Modalı Aç
-    document.getElementById("openAddTaskModalBtn").addEventListener("click", () => {
-        openModal("addTaskModal");
-    });
 
-    // Çocuk Görevi Ekleme Formu
-    document.getElementById("taskForm").addEventListener("submit", (e) => {
-        e.preventDefault();
-        saveTask();
-    });
 
     // Borç Stratejisi Değiştirme (Snowball vs Avalanche)
     document.querySelectorAll("input[name='debtStrategy']").forEach(radio => {
@@ -735,6 +772,65 @@ function bindEvents() {
             });
         }
     });
+
+    // === HIZLI HARCAMA DÜĞMELERİ (QUICK ACTIONS) ===
+    const quickActionsContainer = document.getElementById("quickActionsContainer");
+    if (quickActionsContainer) {
+        quickActionsContainer.addEventListener("click", (e) => {
+            const btn = e.target.closest(".btn-quick-action");
+            if (!btn) return;
+            
+            const category = btn.getAttribute("data-category");
+            const amount = parseFloat(btn.getAttribute("data-amount"));
+            const desc = btn.getAttribute("data-desc");
+            
+            const activeProfile = getActiveProfile();
+            if (!activeProfile) {
+                showToast("İşlem yapmak için aktif bir profil olmalıdır!", "error");
+                return;
+            }
+            
+            const newTrans = {
+                id: "t_" + Date.now(),
+                desc: desc,
+                amount: amount,
+                type: "expense",
+                category: category,
+                date: new Date().toISOString().split('T')[0],
+                memberId: activeProfile.id,
+                isRecurring: false
+            };
+            
+            // Kategori limiti aşım kontrolü
+            if (state.categoryLimits) {
+                const limit = state.categoryLimits[category] || 0;
+                if (limit > 0) {
+                    const currentMonth = new Date(newTrans.date).getMonth();
+                    const currentYear = new Date(newTrans.date).getFullYear();
+                    
+                    const totalSpent = state.transactions
+                        .filter(t => t.type === "expense" && t.category === category && new Date(t.date).getMonth() === currentMonth && new Date(t.date).getFullYear() === currentYear)
+                        .reduce((sum, t) => sum + t.amount, 0) + amount;
+                        
+                    if (totalSpent >= limit) {
+                        showToast(`⚠️ DİKKAT: "${category}" bütçe limiti aşıldı! Limit: ${formatCurrency(limit)}, Toplam harcama: ${formatCurrency(totalSpent)}`, "error");
+                    } else if (totalSpent >= limit * 0.8) {
+                        showToast(`⚠️ UYARI: "${category}" bütçesi sınırda! Toplam harcama bütçenin %80'ine ulaştı. (${formatCurrency(totalSpent)} / ${formatCurrency(limit)})`, "warning");
+                    }
+                }
+            }
+            
+            activeProfile.balanceContribution = (activeProfile.balanceContribution || 0) - amount;
+            state.transactions.unshift(newTrans);
+            
+            // Oyunlaştırma puanı ekle
+            awardPoints(activeProfile.id, 5, "Hızlı Harcama");
+            
+            saveState();
+            updateUI();
+            showToast(`"${desc}" başarıyla kaydedildi!`, "success");
+        });
+    }
 }
 
 // ==========================================================================
@@ -940,22 +1036,6 @@ function loadDemoData() {
 // SEKME YÖNETİMİ
 // ==========================================================================
 function switchTab(tabName) {
-    const activeProfile = getActiveProfile();
-    if (activeProfile && activeProfile.role === "Çocuk" && (tabName === "investments" || tabName === "savings")) {
-        showToast("Bu panele sadece ebeveynler erişebilir!", "warning");
-        switchTab("dashboard");
-        
-        // Menüdeki active class'ı güncelle
-        document.querySelectorAll(".nav-item").forEach(i => {
-            if (i.getAttribute("data-tab") === "dashboard") {
-                i.classList.add("active");
-            } else {
-                i.classList.remove("active");
-            }
-        });
-        return;
-    }
-
     document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.remove("active"));
     const activePanel = document.getElementById(tabName + "Panel");
     if (activePanel) {
@@ -968,8 +1048,7 @@ function switchTab(tabName) {
         debts: { title: "Borç & Taksit Takibi", subtitle: "Borçlarınızı akıllı ödeme stratejileriyle yönetin." },
         sandbox: { title: "Karar Simülatörü", subtitle: "Finansal kararlar almadan önce gelecek bütçenizi simüle edin." },
         investments: { title: "Yatırım & Varlık Portföyü", subtitle: "Altın, Döviz ve sanal varlıklarınızı anlık simülasyonlarla takip edin." },
-        savings: { title: "Toplam Birikim Analizi", subtitle: "Tüm aile birikimlerinizi ve aylık gelişim trendini takip edin." },
-        kidzone: { title: "Çocuk Dünyası", subtitle: "Görevlerinizi tamamlayarak harçlık biriktirin ve bütçenizi yönetin." }
+        savings: { title: "Toplam Birikim Analizi", subtitle: "Tüm aile birikimlerinizi ve aylık gelişim trendini takip edin." }
     };
 
     if (titleMap[tabName]) {
@@ -1026,7 +1105,7 @@ function renderProfiles() {
     avatarContainer.innerHTML = `<i class="fa-solid ${activeProfile.avatar}"></i>`;
 
     // Rol sınıfını body elementine ekleyerek CSS üzerinden izin kontrollerini yapalım
-    document.body.className = activeProfile.role === "Ebeveyn" ? "dark-theme role-parent" : "dark-theme role-child";
+    document.body.className = "dark-theme role-parent";
 
     // Profil Seçici Giriş Modalı Listesi
     const grid = document.getElementById("profileGrid");
@@ -1088,18 +1167,13 @@ function finalizeProfileSelection(profileId) {
     renderProfiles();
     updateUI();
 
-    const activeProfile = getActiveProfile();
-    if (activeProfile.role === "Çocuk") {
-        document.querySelector("[data-tab='kidzone']").click();
-    } else {
-        document.querySelector("[data-tab='dashboard']").click();
-        
-        // Ebeveyn girişi sonrası eğer tanıtım turu tamamlanmadıysa başlat
-        if (!state.onboardingCompleted) {
-            setTimeout(() => {
-                startOnboardingTour();
-            }, 1000);
-        }
+    document.querySelector("[data-tab='dashboard']").click();
+    
+    // Ebeveyn girişi sonrası eğer tanıtım turu tamamlanmadıysa başlat
+    if (!state.onboardingCompleted) {
+        setTimeout(() => {
+            startOnboardingTour();
+        }, 1000);
     }
 }
 
@@ -1163,7 +1237,7 @@ function addNewProfile() {
         role: roleInput.value,
         pin: pinInput.value.trim(),
         avatar: avatarInput.value,
-        balanceContribution: roleInput.value === "Çocuk" ? 0 : 5000 // başlangıç simülasyon bakiyesi
+        balanceContribution: 5000 // başlangıç simülasyon bakiyesi
     };
 
     state.profiles.push(newProfile);
@@ -1178,7 +1252,6 @@ function addNewProfile() {
 function updateProfileDropdowns() {
     const selectMember = document.getElementById("transMember");
     const goalMember = document.getElementById("goalMember");
-    const taskAssignedTo = document.getElementById("taskAssignedTo");
     
     if (selectMember) {
         selectMember.innerHTML = state.profiles
@@ -1189,13 +1262,6 @@ function updateProfileDropdowns() {
     
     if (goalMember) {
         goalMember.innerHTML = state.profiles
-            .map(p => `<option value="${p.id}">${p.name}</option>`)
-            .join("");
-    }
-
-    if (taskAssignedTo) {
-        taskAssignedTo.innerHTML = state.profiles
-            .filter(p => p.role === "Çocuk")
             .map(p => `<option value="${p.id}">${p.name}</option>`)
             .join("");
     }
@@ -1212,15 +1278,7 @@ function updateProfileDropdowns() {
 // HESAPLAMA MOTORU (BAKİYE & ORANLAR)
 // ==========================================================================
 function getFamilyBalance() {
-    const activeProfile = getActiveProfile();
-    if (!activeProfile) return 0;
-    
-    if (activeProfile.role === "Çocuk") {
-        // Çocuk sadece kendi kumbarasını görür
-        return activeProfile.balanceContribution || 0;
-    }
-    
-    // Ebeveyn ortak bütçeyi (tüm ebeveynlerin bakiye katkısını) görür. Çocuk bakiyesi hariç.
+    // Tüm ebeveynlerin ortak bütçe katkısını döndür
     return state.profiles
         .filter(p => p.role === "Ebeveyn")
         .reduce((sum, p) => sum + (p.balanceContribution || 0), 0);
@@ -2044,30 +2102,21 @@ function deleteGoal(id) {
 
 function renderWishlistAndGoals() {
     const list = document.getElementById("dashboardGoalsList");
-    const kidGoals = document.getElementById("kidGoalsContainer");
     if (!list) return;
 
     list.innerHTML = "";
-    if (kidGoals) kidGoals.innerHTML = "";
 
     if (state.goals.length === 0) {
         list.innerHTML = `<p class="text-muted text-center py-2">Hedef listeniz boş.</p>`;
-        if (kidGoals) kidGoals.innerHTML = `<p class="text-muted text-center py-2">Kumbaranı büyütecek birikim hedefin bulunmuyor.</p>`;
         return;
     }
 
     const financials = calculateFinancials();
     const monthlyNetSavings = Math.max(0, financials.monthlyIncome - financials.monthlyExpense);
-    const currentBalance = getFamilyBalance();
-    const activeProfile = getActiveProfile();
+    const targetBalance = getFamilyBalance();
 
     state.goals.forEach(g => {
         const member = state.profiles.find(p => p.id === g.memberId);
-        
-        // Hedef sahibinin rolüne göre ilgili bakiyeyi belirle (Çocuk için kendi kumbarası, Ebeveyn için aile bütçesi)
-        const targetBalance = (member && member.role === "Çocuk") 
-            ? (member.balanceContribution || 0) 
-            : state.profiles.filter(p => p.role === "Ebeveyn").reduce((sum, p) => sum + (p.balanceContribution || 0), 0);
 
         // İlerleme yüzdesi hesaplama
         let progress = 0;
@@ -2077,17 +2126,17 @@ function renderWishlistAndGoals() {
             progress = Math.round((targetBalance / g.cost) * 100);
         }
 
-        // Satın alma vadesi tahmini
+        // Satın alma vadesi tahmini ve rozet stilleri
         let forecastText = "";
         if (targetBalance >= g.cost) {
-            forecastText = "Satın Alınabilir! Bütçe yeterli.";
+            forecastText = `<span class="goal-forecast-badge success"><i class="fa-solid fa-circle-check"></i> Satın Alınabilir!</span>`;
         } else if (monthlyNetSavings <= 0) {
-            forecastText = "Birikim hızı yetersiz (Giderler geliri aşıyor).";
+            forecastText = `<span class="goal-forecast-badge warning"><i class="fa-solid fa-triangle-exclamation"></i> Gelir yetersiz</span>`;
         } else {
             const monthsNeeded = Math.ceil((g.cost - targetBalance) / monthlyNetSavings);
             const targetDate = new Date();
             targetDate.setMonth(targetDate.getMonth() + monthsNeeded);
-            forecastText = `Yaklaşık ${monthsNeeded} Ay Sonra (${targetDate.toLocaleString('tr-TR', { month: 'short', year: 'numeric' })})`;
+            forecastText = `<span class="goal-forecast-badge info"><i class="fa-solid fa-calendar-days"></i> ${monthsNeeded} Ay Sonra (${targetDate.toLocaleString('tr-TR', { month: 'short', year: 'numeric' })})</span>`;
         }
 
         const itemHTML = `
@@ -2095,33 +2144,30 @@ function renderWishlistAndGoals() {
                 <span class="goal-name">${g.title}</span>
                 <span class="goal-cost">${formatCurrency(g.cost)}</span>
             </div>
-            <div class="goal-progress-bar">
-                <div class="goal-progress-fill" style="width: ${progress}%"></div>
+            <div class="goal-progress-bar-wrapper" style="margin: 8px 0;">
+                <div class="goal-progress-bar" style="height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 3px; overflow: hidden; position: relative;">
+                    <div class="goal-progress-fill" style="width: ${progress}%; height: 100%; background: linear-gradient(90deg, var(--color-cyan), var(--color-purple)); border-radius: 3px; transition: width 1s ease-out;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary); margin-top: 4px;">
+                    <span>İlerleme</span>
+                    <span>%${progress}</span>
+                </div>
             </div>
-            <div class="goal-forecast">
+            <div class="goal-forecast" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
                 <span>${forecastText}</span>
-                <span class="goal-owner">${member ? member.name : ''}</span>
+                <span class="goal-owner" style="background: rgba(255, 255, 255, 0.05); padding: 2px 6px; border-radius: 4px; font-size: 10px; color: var(--text-secondary);"><i class="fa-solid fa-user" style="font-size: 8px; margin-right: 4px;"></i>${member ? member.name : ''}</span>
             </div>
-            <div class="text-right margin-top parent-only">
+            <div class="text-right margin-top parent-only" style="margin-top: 8px;">
                 <button class="delete-row-btn" onclick="deleteGoal('${g.id}')">
                     <i class="fa-solid fa-trash-can"></i>
                 </button>
             </div>
         `;
 
-        // Ana Dashboard'da göster
         const div = document.createElement("div");
         div.className = "goal-item";
         div.innerHTML = itemHTML;
         list.appendChild(div);
-
-        // Çocuk Dünyası modunda çocuk hedeflerini göster
-        if (kidGoals && member && member.role === "Çocuk") {
-            const childDiv = document.createElement("div");
-            childDiv.className = "goal-item";
-            childDiv.innerHTML = itemHTML;
-            kidGoals.appendChild(childDiv);
-        }
     });
 }
 
@@ -2232,169 +2278,7 @@ function getFinancialHealthMetrics() {
     };
 }
 
-// ==========================================================================
-// ÇOCUK DÜNYASI (GAMIFICATION & CHORES)
-// ==========================================================================
-function saveTask() {
-    const title = document.getElementById("taskTitle").value.trim();
-    const reward = parseFloat(document.getElementById("taskReward").value);
-    const assignedTo = document.getElementById("taskAssignedTo").value;
-
-    if (!title) {
-        showToast("Lütfen görev açıklaması giriniz!", "error");
-        return;
-    }
-    if (isNaN(reward) || reward <= 0) {
-        showToast("Lütfen geçerli ve sıfırdan büyük bir görev ödülü giriniz!", "error");
-        return;
-    }
-
-    const newTask = {
-        id: "tk_" + Date.now(),
-        title,
-        reward,
-        assignedTo,
-        status: "pending" // ilk durumu yapılmadı
-    };
-
-    state.tasks.push(newTask);
-    saveState();
-
-    document.getElementById("taskTitle").value = "";
-    document.getElementById("taskReward").value = "";
-
-    closeModal("addTaskModal");
-    updateUI();
-}
-
-function completeTaskByKid(id) {
-    const task = state.tasks.find(t => t.id === id);
-    if (task) {
-        task.status = "review"; // ebeveyn onayına gönder
-        saveState();
-        updateUI();
-        showToast("Harika! Görev tamamlandı olarak işaretlendi ve ebeveyn onayına gönderildi.", "success");
-    }
-}
-
-function approveTaskByParent(id) {
-    const task = state.tasks.find(t => t.id === id);
-    if (task && task.status === "review") {
-        task.status = "completed";
-        
-        // Çocuğun kumbarasını güncelle (bakiye katkısını artır)
-        const child = state.profiles.find(p => p.id === task.assignedTo);
-        if (child) {
-            child.balanceContribution += task.reward;
-            
-            // Oyunlaştırma puanı ekle (Çocuğa görev puanı, Ebeveyne onay puanı)
-            awardPoints(child.id, 100, "Görev Tamamlama");
-            awardPoints(state.activeProfileId, 25, "Görev Onaylama");
-            
-            // Kumbara coin animasyonunu tetikle
-            setTimeout(triggerCoinDrop, 100);
-        }
-
-        // Aile bütçesinden "Çocuk Harçlığı" harcaması olarak düş
-        const expTrans = {
-            id: "t_" + Date.now(),
-            desc: `Harçlık Ödemesi: ${child ? child.name : 'Çocuk'} - ${task.title}`,
-            amount: task.reward,
-            type: "expense",
-            category: "Eğitim", // harçlıkları eğitim/diğer altında toplayalım
-            date: new Date().toISOString().split('T')[0],
-            memberId: state.activeProfileId || state.profiles.find(p => p.role === "Ebeveyn").id,
-            isRecurring: false
-        };
-        
-        // Aile ebeveyn bakiyesini düşür
-        const parent = state.profiles.find(p => p.id === state.activeProfileId) || state.profiles.find(p => p.role === "Ebeveyn");
-        if (parent) parent.balanceContribution -= task.reward;
-
-        state.transactions.unshift(expTrans);
-        saveState();
-        updateUI();
-        
-        showToast("Görev onaylandı! Harçlık çocuğun kumbarasına yatırıldı.", "success");
-    }
-}
-
-function renderKidZone() {
-    const tbody = document.getElementById("kidTasksTableBody");
-    const balanceLabel = document.getElementById("kidTotalBalance");
-    if (!tbody) return;
-
-    tbody.innerHTML = "";
-    
-    // Çocuk profillerini bul
-    const activeProfile = getActiveProfile();
-    const children = state.profiles.filter(p => p.role === "Çocuk");
-    
-    // Kendi kumbarasını göster
-    if (balanceLabel) {
-        if (activeProfile.role === "Çocuk") {
-            balanceLabel.innerText = formatCurrency(activeProfile.balanceContribution);
-        } else {
-            // Ebeveyn çocukların toplam kumbarasını görür
-            const totalKidBalance = children.reduce((sum, c) => sum + c.balanceContribution, 0);
-            balanceLabel.innerText = formatCurrency(totalKidBalance);
-        }
-    }
-
-    // Görev listesini listele
-    const tasksToShow = activeProfile.role === "Çocuk"
-        ? state.tasks.filter(t => t.assignedTo === activeProfile.id)
-        : state.tasks;
-
-    if (tasksToShow.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Kayıtlı görev bulunmamaktadır.</td></tr>`;
-        return;
-    }
-
-    tasksToShow.forEach(t => {
-        const tr = document.createElement("tr");
-        const assignedChild = state.profiles.find(p => p.id === t.assignedTo);
-
-        let statusText = "";
-        let statusClass = "";
-        let actionBtn = "";
-
-        if (t.status === "pending") {
-            statusText = "Yapılmadı";
-            statusClass = "pending";
-            
-            // Eğer çocuk giriş yaptıysa "Yapıldı Olarak İşaretle" butonu çıksın
-            if (activeProfile.role === "Çocuk") {
-                actionBtn = `<button class="btn btn-sm btn-primary" onclick="completeTaskByKid('${t.id}')"><i class="fa-solid fa-check"></i> Tamamladım</button>`;
-            } else {
-                actionBtn = `<span class="text-muted">Çocuktan Bildirim Bekleniyor</span>`;
-            }
-        } else if (t.status === "review") {
-            statusText = "Onay Bekliyor";
-            statusClass = "review";
-
-            // Eğer ebeveyn giriş yaptıysa "Onayla" butonu çıksın
-            if (activeProfile.role === "Ebeveyn") {
-                actionBtn = `<button class="btn btn-sm btn-primary" style="background-color: var(--color-green);" onclick="approveTaskByParent('${t.id}')"><i class="fa-solid fa-circle-check"></i> Harçlığı Onayla</button>`;
-            } else {
-                actionBtn = `<span class="text-muted">Ebeveyn Onayı Bekleniyor</span>`;
-            }
-        } else {
-            statusText = "Tamamlandı & Ödendi";
-            statusClass = "completed";
-            actionBtn = `<i class="fa-solid fa-clipboard-check text-green" style="font-size: 18px;"></i>`;
-        }
-
-        tr.innerHTML = `
-            <td><strong>${t.title}</strong></td>
-            <td class="text-green font-weight-bold">+${formatCurrency(t.reward)}</td>
-            <td>${assignedChild ? assignedChild.name : 'Bilinmeyen'}</td>
-            <td><span class="task-status-badge ${statusClass}">${statusText}</span></td>
-            <td>${actionBtn}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
+// (Çocuk Dünyası ve Görev fonksiyonları silindi)
 
 // ==========================================================================
 // YARDIMCI GÖRSEL VE FORMAT FONKSİYONLARI
@@ -2443,7 +2327,6 @@ function updateUI() {
     renderBillSplitter();
     renderScenarios();
     renderWishlistAndGoals();
-    renderKidZone();
 
     // 5 Yeni Premium Özelliğin Arayüz Render'ları
     renderLeaderboard();
@@ -2478,8 +2361,6 @@ window.deleteDebt = deleteDebt;
 window.deleteGoal = deleteGoal;
 window.deleteScenario = deleteScenario;
 window.toggleScenario = toggleScenario;
-window.completeTaskByKid = completeTaskByKid;
-window.approveTaskByParent = approveTaskByParent;
 window.removeSetupProfile = removeSetupProfile;
 
 // ==========================================================================
@@ -2544,15 +2425,6 @@ function checkAndUnlockBadges(profileId) {
     if (!profile) return;
     if (!profile.badges) profile.badges = [];
 
-    // Rozet 1: Görev Canavarı (En az 3 görev tamamlama)
-    if (profile.role === "Çocuk") {
-        const completedTasksCount = state.tasks.filter(t => t.assignedTo === profileId && t.status === "completed").length;
-        if (completedTasksCount >= 3 && !profile.badges.includes("Görev Canavarı")) {
-            profile.badges.push("Görev Canavarı");
-            showToast(`🎉 ${profile.name} "Görev Canavarı" rozetini kazandı!`, "success");
-        }
-    }
-
     // Rozet 2: Bütçe Koruyucusu (Harcamaları limitin %80'inin altında tutma)
     if (profile.role === "Ebeveyn") {
         const now = new Date();
@@ -2592,12 +2464,9 @@ function checkAndUnlockBadges(profileId) {
         }
     }
 
-    // Rozet 3: Birikim Ustası / Kumbara Ortağı
+    // Rozet 3: Kumbara Ortağı
     const currentBalance = getFamilyBalance();
-    if (profile.role === "Çocuk" && profile.balanceContribution >= 500 && !profile.badges.includes("Birikim Ustası")) {
-        profile.badges.push("Birikim Ustası");
-        showToast(`🎉 ${profile.name} "Birikim Ustası" rozetini kazandı!`, "success");
-    } else if (profile.role === "Ebeveyn" && currentBalance >= 20000 && !profile.badges.includes("Kumbara Ortağı")) {
+    if (profile.role === "Ebeveyn" && currentBalance >= 20000 && !profile.badges.includes("Kumbara Ortağı")) {
         profile.badges.push("Kumbara Ortağı");
         showToast(`🎉 ${profile.name} "Kumbara Ortağı" rozetini kazandı!`, "success");
     }
@@ -2654,10 +2523,6 @@ function updateSavingsJar() {
     const jarPercent = document.getElementById("jarPercent");
     const jarGoalName = document.getElementById("jarActiveGoalName");
     
-    const kidJarWidget = document.getElementById("kidSavingsJarWidget");
-    const kidJarWater = document.getElementById("kidJarWater");
-    const kidJarPercent = document.getElementById("kidJarPercent");
-    
     const currentBalance = getFamilyBalance();
     
     if (state.goals && state.goals.length > 0) {
@@ -2677,34 +2542,6 @@ function updateSavingsJar() {
         if (jarWater) jarWater.style.height = `${percent}%`;
     } else {
         if (jarWidget) jarWidget.style.display = "none";
-    }
-    
-    const activeProfile = getActiveProfile();
-    if (activeProfile && activeProfile.role === "Çocuk") {
-        if (kidJarWidget) kidJarWidget.style.display = "flex";
-        
-        const childGoals = state.goals.filter(g => g.memberId === activeProfile.id);
-        let percent = 0;
-        
-        if (childGoals.length > 0) {
-            const targetGoal = childGoals[0];
-            const childBalance = activeProfile.balanceContribution;
-            
-            if (childBalance >= targetGoal.cost) {
-                percent = 100;
-            } else if (childBalance > 0) {
-                percent = Math.round((childBalance / targetGoal.cost) * 100);
-            }
-        } else {
-            const targetBalance = 5000;
-            const childBalance = activeProfile.balanceContribution;
-            percent = Math.min(100, Math.round((childBalance / targetBalance) * 100));
-        }
-        
-        if (kidJarPercent) kidJarPercent.innerText = `${percent}%`;
-        if (kidJarWater) kidJarWater.style.height = `${percent}%`;
-    } else {
-        if (kidJarWidget) kidJarWidget.style.display = "none";
     }
 }
 
@@ -3780,11 +3617,7 @@ function updateSavingsHistoryRecord() {
     const btcVal = (state.portfolio?.btc || 0) * exchangeRates.btc;
     const portfolioVal = usdVal + eurVal + goldVal + btcVal;
     
-    const kidsBalance = state.profiles
-        .filter(p => p.role === "Çocuk")
-        .reduce((sum, c) => sum + (c.balanceContribution || 0), 0);
-        
-    const total = safeBalance + portfolioVal + kidsBalance;
+    const total = safeBalance + portfolioVal;
     
     // Mevcut ayın kaydını bul veya oluştur
     let record = state.savingsHistory.find(r => r.month === currentMonthLabel);
@@ -3797,7 +3630,6 @@ function updateSavingsHistoryRecord() {
             month: currentMonthLabel,
             safe: safeBalance,
             portfolio: portfolioVal,
-            kids: kidsBalance,
             total: total,
             netChange: netChange
         };
@@ -3806,7 +3638,6 @@ function updateSavingsHistoryRecord() {
         // Mevcut kaydı güncelle
         record.safe = safeBalance;
         record.portfolio = portfolioVal;
-        record.kids = kidsBalance;
         record.total = total;
         
         const idx = state.savingsHistory.indexOf(record);
@@ -3834,21 +3665,16 @@ function renderSavingsPage() {
     const btcVal = (state.portfolio?.btc || 0) * exchangeRates.btc;
     const portfolioVal = usdVal + eurVal + goldVal + btcVal;
     
-    const children = state.profiles.filter(p => p.role === "Çocuk");
-    const kidsBalance = children.reduce((sum, c) => sum + (c.balanceContribution || 0), 0);
-    
-    const totalAccumulated = safeBalance + portfolioVal + kidsBalance;
+    const totalAccumulated = safeBalance + portfolioVal;
     
     // DOM Kartlarını güncelle
     const totalAccEl = document.getElementById("savingsTotalAccumulated");
     const safeEl = document.getElementById("savingsSafeCash");
     const portEl = document.getElementById("savingsPortfolioVal");
-    const kidsEl = document.getElementById("savingsKidsCash");
     
     if (totalAccEl) totalAccEl.innerText = formatCurrency(totalAccumulated);
     if (safeEl) safeEl.innerText = formatCurrency(safeBalance);
     if (portEl) portEl.innerText = formatCurrency(portfolioVal);
-    if (kidsEl) kidsEl.innerText = formatCurrency(kidsBalance);
     
     // Detay Tablosunu Güncelle
     const list = document.getElementById("savingsDetailsList");
@@ -3862,14 +3688,6 @@ function renderSavingsPage() {
             { name: "Altın Birikimi (gr)", qty: `${(state.portfolio?.gold || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} gr`, val: goldVal },
             { name: "Bitcoin Birikimi (BTC)", qty: `${(state.portfolio?.btc || 0).toLocaleString('tr-TR', { minimumFractionDigits: 6 })} BTC`, val: btcVal }
         ];
-        
-        children.forEach(c => {
-            items.push({
-                name: `${c.name} Kumbarası`,
-                qty: "Birikim",
-                val: c.balanceContribution || 0
-            });
-        });
         
         items.forEach(item => {
             const row = document.createElement("tr");
