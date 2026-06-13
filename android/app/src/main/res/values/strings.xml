@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Akilli Aile Butcesi</string>
+    <string name="title_activity_main">Akilli Aile Butcesi</string>
+    <string name="package_name">com.akilliailebutcesi.app</string>
+    <string name="custom_url_scheme">com.akilliailebutcesi.app</string>
+</resources>

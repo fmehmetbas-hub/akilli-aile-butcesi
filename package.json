@@ -1,0 +1,17 @@
+{
+  "name": "akilli-aile-butcesi",
+  "version": "1.0.0",
+  "description": "Akıllı Aile Bütçesi ve Finans Portföyü Mobil Uygulaması",
+  "main": "app.js",
+  "scripts": {
+    "cap:sync": "npx cap sync",
+    "cap:open-android": "npx cap open android",
+    "cap:open-ios": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0"
+  }
+}
