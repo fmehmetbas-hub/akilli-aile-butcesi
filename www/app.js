@@ -877,11 +877,41 @@ function endTour() {
 // ==========================================================================
 // DEMO VERİLERİNİ YÜKLEME SİSTEMİ
 // ==========================================================================
+function adjustDemoDates(demoState) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+    
+    if (demoState.transactions) {
+        demoState.transactions.forEach(t => {
+            if (t.date) {
+                const parts = t.date.split("-");
+                if (parts.length === 3) {
+                    t.date = `${currentYear}-${currentMonth}-${parts[2]}`;
+                }
+            }
+        });
+    }
+    
+    if (demoState.savingsHistory) {
+        const monthNames = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+        for (let i = 0; i < demoState.savingsHistory.length; i++) {
+            const d = new Date();
+            d.setMonth(now.getMonth() - (demoState.savingsHistory.length - 1 - i));
+            const mLabel = monthNames[d.getMonth()];
+            const yLabel = d.getFullYear();
+            demoState.savingsHistory[i].month = `${mLabel} ${yLabel}`;
+        }
+    }
+}
+
 function loadDemoData() {
     const confirmLoad = confirm("Uygulamayı dolu verilerle hızlıca test etmek için demo verilerini yüklemek istiyor musunuz?");
     if (confirmLoad) {
         const currentAccount = state.account;
-        state = JSON.parse(JSON.stringify(DEMO_DATA_STATE));
+        const demoState = JSON.parse(JSON.stringify(DEMO_DATA_STATE));
+        adjustDemoDates(demoState);
+        state = demoState;
         state.account = currentAccount;
         state.onboardingCompleted = true;
         saveState();
@@ -1228,6 +1258,23 @@ function saveTransaction() {
     const isRecurring = document.getElementById("transIsRecurring").checked;
     const type = document.querySelector("input[name='transType']:checked").value;
 
+    if (!desc) {
+        showToast("Lütfen bir açıklama giriniz!", "error");
+        return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+        showToast("Lütfen geçerli ve sıfırdan büyük bir tutar giriniz!", "error");
+        return;
+    }
+    if (!date) {
+        showToast("Lütfen geçerli bir tarih seçiniz!", "error");
+        return;
+    }
+    if (!memberId) {
+        showToast("Lütfen işlemi yapan üyeyi seçiniz!", "error");
+        return;
+    }
+
     const newTrans = {
         id: "t_" + Date.now(),
         desc,
@@ -1479,6 +1526,19 @@ function saveDebt() {
     const totalAmount = parseFloat(document.getElementById("debtTotal").value);
     const interestRate = parseFloat(document.getElementById("debtInterest").value) || 0;
     const minPayment = parseFloat(document.getElementById("debtMinPayment").value);
+
+    if (!title || !creditor) {
+        showToast("Lütfen borç başlığı ve alacaklı alanlarını doldurunuz!", "error");
+        return;
+    }
+    if (isNaN(totalAmount) || totalAmount <= 0) {
+        showToast("Lütfen geçerli ve sıfırdan büyük bir borç tutarı giriniz!", "error");
+        return;
+    }
+    if (isNaN(minPayment) || minPayment < 0) {
+        showToast("Lütfen geçerli bir taksit/minimum ödeme tutarı giriniz!", "error");
+        return;
+    }
 
     const newDebt = {
         id: "d_" + Date.now(),
@@ -1772,6 +1832,15 @@ function saveScenario() {
     const duration = parseInt(document.getElementById("scenDuration").value);
     const startMonth = parseInt(document.getElementById("scenStartMonth").value);
 
+    if (!name) {
+        showToast("Lütfen senaryo adı giriniz!", "error");
+        return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+        showToast("Lütfen geçerli ve sıfırdan büyük bir senaryo tutarı giriniz!", "error");
+        return;
+    }
+
     const newScenario = {
         id: "s_" + Date.now(),
         name,
@@ -1920,6 +1989,15 @@ function saveGoal() {
     const title = document.getElementById("goalTitle").value.trim();
     const cost = parseFloat(document.getElementById("goalCost").value);
     const memberId = document.getElementById("goalMember").value;
+
+    if (!title) {
+        showToast("Lütfen bir hedef başlığı giriniz!", "error");
+        return;
+    }
+    if (isNaN(cost) || cost <= 0) {
+        showToast("Lütfen geçerli ve sıfırdan büyük bir hedef tutarı giriniz!", "error");
+        return;
+    }
 
     const newGoal = {
         id: "g_" + Date.now(),
@@ -2149,6 +2227,15 @@ function saveTask() {
     const title = document.getElementById("taskTitle").value.trim();
     const reward = parseFloat(document.getElementById("taskReward").value);
     const assignedTo = document.getElementById("taskAssignedTo").value;
+
+    if (!title) {
+        showToast("Lütfen görev açıklaması giriniz!", "error");
+        return;
+    }
+    if (isNaN(reward) || reward <= 0) {
+        showToast("Lütfen geçerli ve sıfırdan büyük bir görev ödülü giriniz!", "error");
+        return;
+    }
 
     const newTask = {
         id: "tk_" + Date.now(),
