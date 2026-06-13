@@ -123,30 +123,80 @@ const tourSteps = [
 let currentTourStep = 0;
 
 // ==========================================================================
-// UYGULAMA BAŞLANGICI VE LOAD İŞLEMLERİ
+// UYGULAMA BAŞLANGICI VE LOAD İŞLEMLERİ (SUPABASE BULUT ENTEGRASYONU)
 // ==========================================================================
-document.addEventListener("DOMContentLoaded", () => {
-    initApp();
-});
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
-function initApp() {
+let supabaseClient = null;
+if (typeof supabase !== 'undefined' && SUPABASE_URL !== "YOUR_SUPABASE_URL" && SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY") {
+    try {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log("Supabase client initialized successfully.");
+    } catch (e) {
+        console.warn("Supabase initialization failed, running in Local-Only Fallback mode:", e);
+    }
+} else {
+    console.log("Supabase configuration not found or placeholder values active. Running in Local-Only Fallback mode.");
+}
+
+async function syncStateWithCloud() {
+    if (!supabaseClient) return false;
+    try {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (user) {
+            const { data, error } = await supabaseClient
+                .from('family_budgets')
+                .select('state_data')
+                .eq('user_id', user.id)
+                .single();
+            
+            if (error && error.code !== 'PGRST116') {
+                console.error("Supabase fetch error:", error);
+                return false;
+            }
+            
+            if (data && data.state_data) {
+                state = data.state_data;
+                localStorage.setItem("smart_budget_state", JSON.stringify(state));
+                console.log("State synced from Supabase cloud.");
+                return true;
+            }
+        }
+    } catch (e) {
+        console.warn("Supabase fetch failed, running locally:", e);
+    }
+    return false;
+}
+
+function ensureStateDefaults() {
+    if (!state.portfolio) {
+        state.portfolio = { usd: 0, eur: 0, gold: 0, btc: 0, history: [] };
+    }
+    if (!state.shoppingCart) {
+        state.shoppingCart = [];
+    }
+    if (!state.trackedAssets) {
+        state.trackedAssets = { usd: true, eur: true, gold: true, btc: true };
+    }
+    if (!state.savingsHistory) {
+        state.savingsHistory = [];
+    }
+}
+
+// DOM Yüklendiğinde veya Sayfa Zaten Yüklendiyse Uygulamayı Başlat
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => initApp());
+} else {
+    initApp();
+}
+
+async function initApp() {
     const storedState = localStorage.getItem("smart_budget_state");
     if (storedState) {
         try {
             state = JSON.parse(storedState);
-            // Uyumluluk kontrolleri (Eski localStorage verileri için)
-            if (!state.portfolio) {
-                state.portfolio = { usd: 0, eur: 0, gold: 0, btc: 0, history: [] };
-            }
-            if (!state.shoppingCart) {
-                state.shoppingCart = [];
-            }
-            if (!state.trackedAssets) {
-                state.trackedAssets = { usd: true, eur: true, gold: true, btc: true };
-            }
-            if (!state.savingsHistory) {
-                state.savingsHistory = [];
-            }
+            ensureStateDefaults();
         } catch (e) {
             console.error("State parse hatası, varsayılan yükleniyor...", e);
             state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -154,6 +204,16 @@ function initApp() {
     } else {
         state = JSON.parse(JSON.stringify(DEFAULT_STATE));
         saveState();
+    }
+
+    if (supabaseClient) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+            const synced = await syncStateWithCloud();
+            if (synced) {
+                updateUI();
+            }
+        }
     }
 
     // Tarih inputunu bugün yap
@@ -166,13 +226,21 @@ function initApp() {
     bindEvents();
 
     // Hoş geldiniz ekranı & Giriş akışını kontrol et
-    checkWelcomeFlow();
+    await checkWelcomeFlow();
 }
 
-function checkWelcomeFlow() {
+async function checkWelcomeFlow() {
     const overlay = document.getElementById("welcomeOverlay");
     
-    if (!state.account) {
+    let isLoggedIn = false;
+    if (supabaseClient) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        isLoggedIn = !!session;
+    } else {
+        isLoggedIn = !!state.account;
+    }
+    
+    if (!isLoggedIn) {
         // Adım 1: Kayıt / Giriş Ekranı
         overlay.style.display = "flex";
         document.getElementById("welcomeAuthScreen").style.display = "block";
@@ -204,8 +272,31 @@ function checkWelcomeFlow() {
     }
 }
 
-function saveState() {
+async function saveState() {
     localStorage.setItem("smart_budget_state", JSON.stringify(state));
+    
+    if (supabaseClient) {
+        try {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (user) {
+                const { error } = await supabaseClient
+                    .from('family_budgets')
+                    .upsert({ 
+                        user_id: user.id, 
+                        state_data: state,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'user_id' });
+                
+                if (error) {
+                    console.error("Supabase upsert error:", error);
+                } else {
+                    console.log("Supabase state saved successfully.");
+                }
+            }
+        } catch (e) {
+            console.warn("Could not save to Supabase cloud:", e);
+        }
+    }
 }
 
 // ==========================================================================
@@ -363,32 +454,73 @@ function bindEvents() {
         });
     }
 
-    document.getElementById("registerForm").addEventListener("submit", (e) => {
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         const email = document.getElementById("regEmail").value.trim();
         const password = document.getElementById("regPass").value;
         
-        // Eski sürümden kalan localStorage profillerini ve bütçe kalıntılarını tamamen sıfırla
-        state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-        state.account = { email, password };
-        saveState();
+        if (supabaseClient) {
+            showToast("Kayıt olunuyor...", "info");
+            const { data, error } = await supabaseClient.auth.signUp({
+                email,
+                password
+            });
+            
+            if (error) {
+                showToast("Kayıt hatası: " + error.message, "error");
+                return;
+            }
+            
+            showToast("Hesap başarıyla oluşturuldu! Giriş yapılıyor...", "success");
+            
+            state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+            state.account = { email, password };
+            await saveState();
+        } else {
+            state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+            state.account = { email, password };
+            saveState();
+            showToast("Hesap yerel bellekte oluşturuldu (Çevrimdışı mod).", "success");
+        }
         
         document.getElementById("regEmail").value = "";
         document.getElementById("regPass").value = "";
         
-        checkWelcomeFlow();
+        await checkWelcomeFlow();
     });
 
-    document.getElementById("loginForm").addEventListener("submit", (e) => {
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         const email = document.getElementById("logEmail").value.trim();
         const password = document.getElementById("logPass").value;
         
-        if (state.account && state.account.email === email && state.account.password === password) {
-            checkWelcomeFlow();
+        if (supabaseClient) {
+            showToast("Giriş yapılıyor...", "info");
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email,
+                password
+            });
+            
+            if (error) {
+                showToast("Giriş başarısız: " + error.message, "error");
+                return;
+            }
+            
+            showToast("Giriş başarılı! Verileriniz eşitleniyor...", "success");
+            await syncStateWithCloud();
         } else {
-            showToast("E-posta veya şifre hatalı! Lütfen tekrar deneyiniz.", "error");
+            if (state.account && state.account.email === email && state.account.password === password) {
+                showToast("Giriş başarılı (Çevrimdışı mod).", "success");
+            } else {
+                showToast("E-posta veya şifre hatalı! Lütfen tekrar deneyiniz.", "error");
+                return;
+            }
         }
+        
+        document.getElementById("logEmail").value = "";
+        document.getElementById("logPass").value = "";
+        
+        await checkWelcomeFlow();
     });
 
     document.getElementById("setupProfileForm").addEventListener("submit", (e) => {
@@ -451,6 +583,25 @@ function bindEvents() {
     if (loadDemoBtn) {
         loadDemoBtn.addEventListener("click", () => {
             loadDemoData();
+        });
+    }
+
+    // === SİSTEMİ SIFIRLAMA / ÇIKIŞ YAPMA DINLEYICISI ===
+    const resetBtn = document.getElementById("systemResetBtn");
+    if (resetBtn) {
+        resetBtn.addEventListener("click", async () => {
+            if (confirm("Çıkış yapmak ve tüm yerel verilerinizi sıfırlamak istediğinize emin misiniz?")) {
+                localStorage.removeItem("smart_budget_state");
+                if (supabaseClient) {
+                    try {
+                        await supabaseClient.auth.signOut();
+                        showToast("Oturum kapatıldı.", "info");
+                    } catch (e) {
+                        console.warn("Supabase signout failed:", e);
+                    }
+                }
+                location.reload();
+            }
         });
     }
 
